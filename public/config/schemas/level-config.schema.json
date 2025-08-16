@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "level-config.schema.json",
+  "title": "LevelConfig",
+  "type": "object",
+  "required": [
+    "version",
+    "updatedAt",
+    "maxLevel",
+    "tiers",
+    "xpCurve",
+    "levelRewards",
+    "unlocks"
+  ],
+  "properties": {
+    "version": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "maxLevel": { "type": "integer", "minimum": 1 },
+    "tiers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "range"],
+        "properties": {
+          "name": { "type": "string" },
+          "range": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      }
+    },
+    "xpCurve": {
+      "type": "object",
+      "required": ["type", "pieces"],
+      "properties": {
+        "type": { "type": "string", "enum": ["piecewise"] },
+        "pieces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "oneOf": [
+              {
+                "required": ["levels", "base", "growth"],
+                "properties": {
+                  "levels": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "base": { "type": "integer", "minimum": 1 },
+                  "growth": { "type": "number", "exclusiveMinimum": 1 }
+                }
+              },
+              {
+                "required": ["levels", "increment"],
+                "properties": {
+                  "levels": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "increment": { "type": "integer", "minimum": 1 }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "levelRewards": {
+      "type": "object",
+      "properties": {
+        "coinsPerLevel": { "type": ["integer", "null"] },
+        "notes": { "type": "string" }
+      }
+    },
+    "unlocks": {
+      "type": "object",
+      "required": ["avatarsByLevel"],
+      "properties": {
+        "avatarsByLevel": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["level", "avatar"],
+            "properties": {
+              "level": { "type": "integer", "minimum": 1 },
+              "avatar": { "type": "string" }
+            }
+          }
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

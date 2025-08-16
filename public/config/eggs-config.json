@@ -1,0 +1,67 @@
+{
+  "$schema": "./schemas/eggs-config.schema.json",
+  "version": "1.0.0",
+  "updatedAt": "2025-08-08",
+  "minigame": {
+    "triggerCorrectCount": 4,
+    "durationSec": 10
+  },
+  "opening": { "instant": true },
+  "fairness": { "levelIndependent": true },
+  "dropRates": {
+    "basis": 10000,
+    "types": [
+      { "id": "basic-egg", "weight": 8500 },
+      { "id": "royal-egg", "weight": 1200 },
+      { "id": "legendary-egg", "weight": 250 },
+      { "id": "dragon-egg", "weight": 50 }
+    ]
+  },
+  "rewards": {
+    "avatar": {
+      "rarities": ["Common", "Uncommon", "Rare", "Epic", "Legendary"]
+    },
+    "frame": { "rarities": ["Basic", "Premium"] },
+    "emoji": { "rarities": ["Common", "Uncommon", "Rare", "Epic", "Legendary"] }
+  },
+  "pools": {
+    "basic-egg": [
+      { "type": "avatar", "rarity": ["Common"], "weight": 6000 },
+      { "type": "emoji", "rarity": ["Common"], "weight": 3000 },
+      { "type": "xp", "range": [50, 200], "weight": 800 },
+      { "type": "coin", "range": [5, 15], "weight": 200 }
+    ],
+    "royal-egg": [
+      { "type": "avatar", "rarity": ["Uncommon", "Rare"], "weight": 6000 },
+      { "type": "emoji", "rarity": ["Rare"], "weight": 3000 },
+      { "type": "frame", "rarity": ["Basic"], "weight": 1000 }
+    ],
+    "legendary-egg": [
+      { "type": "avatar", "rarity": ["Rare", "Epic"], "weight": 7000 },
+      { "type": "emoji", "rarity": ["Epic"], "weight": 2000 },
+      { "type": "frame", "rarity": ["Premium"], "weight": 1000 }
+    ],
+    "dragon-egg": [
+      { "type": "avatar", "rarity": ["Epic", "Legendary"], "weight": 7000 },
+      { "type": "emoji", "rarity": ["Legendary"], "weight": 2000 },
+      { "type": "frame", "rarity": ["Premium"], "weight": 1000 }
+    ]
+  },
+  "duplicateConversion": {
+    "avatar": {
+      "Common": 5,
+      "Uncommon": 10,
+      "Rare": 20,
+      "Epic": 60,
+      "Legendary": 150
+    },
+    "frame": { "Basic": 20, "Premium": 80 },
+    "emoji": {
+      "Common": 5,
+      "Uncommon": 10,
+      "Rare": 20,
+      "Epic": 60,
+      "Legendary": 150
+    }
+  }
+}

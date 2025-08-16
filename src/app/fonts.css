@@ -1,0 +1,16 @@
+/* Kenney Font Loading */
+@font-face {
+  font-family: "KenneyFuture";
+  src: url("../../public/kenney_ui-pack/Font/Kenney\ Future.ttf")
+    format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "KenneyFutureNarrow";
+  src: url("../../public/kenney_ui-pack/Font/Kenney\ Future\ Narrow.ttf")
+    format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}

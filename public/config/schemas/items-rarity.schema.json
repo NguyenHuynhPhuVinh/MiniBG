@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "items-rarity.schema.json",
+  "title": "ItemsRarityConfig",
+  "type": "object",
+  "required": ["version", "updatedAt", "avatars", "frames", "emojis"],
+  "properties": {
+    "version": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "avatars": {
+      "type": "object",
+      "required": ["Common", "Uncommon", "Rare", "Epic", "Legendary"],
+      "properties": {
+        "Common": { "$ref": "#/definitions/idArray" },
+        "Uncommon": { "$ref": "#/definitions/idArray" },
+        "Rare": { "$ref": "#/definitions/idArray" },
+        "Epic": { "$ref": "#/definitions/idArray" },
+        "Legendary": { "$ref": "#/definitions/idArray" }
+      }
+    },
+    "frames": {
+      "type": "object",
+      "required": ["Basic", "Premium"],
+      "properties": {
+        "Basic": { "$ref": "#/definitions/idArray" },
+        "Premium": { "$ref": "#/definitions/idArray" }
+      }
+    },
+    "emojis": {
+      "type": "object",
+      "required": ["Common", "Uncommon", "Rare", "Epic", "Legendary"],
+      "properties": {
+        "Common": { "$ref": "#/definitions/idArray" },
+        "Uncommon": { "$ref": "#/definitions/idArray" },
+        "Rare": { "$ref": "#/definitions/idArray" },
+        "Epic": { "$ref": "#/definitions/idArray" },
+        "Legendary": { "$ref": "#/definitions/idArray" }
+      }
+    }
+  },
+  "definitions": {
+    "idArray": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    }
+  }
+}

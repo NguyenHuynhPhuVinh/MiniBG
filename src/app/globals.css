@@ -1,0 +1,178 @@
+/* --- Bảng màu đề xuất cho Synlearnia - Nền tảng học tập thông minh --- */
+
+/* Nhập các tiện ích cơ bản và animation của Tailwind CSS */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Import Name Effects CSS - Enhanced & Bold (Maximum Visibility) */
+@import "../styles/name-effects-enhanced.css";
+@import "../styles/name-effects-master-enhanced.css";
+
+/* Định nghĩa một biến thể tùy chỉnh 'dark' */
+@custom-variant dark (&:is(.dark *));
+
+/* Định nghĩa các bí danh màu sắc ngữ nghĩa */
+@theme inline {
+  /* --- Cơ bản --- */
+  --color-background: var(--background); /* Nền chính */
+  --color-foreground: var(--foreground); /* Chữ chính */
+
+  /* --- Thành phần UI chung --- */
+  --color-card: var(--card); /* Nền thẻ (card) */
+  --color-card-foreground: var(--card-foreground); /* Chữ trên thẻ */
+  --color-popover: var(--popover); /* Nền popover */
+  --color-popover-foreground: var(--popover-foreground); /* Chữ trên popover */
+  --color-border: var(--border); /* Viền mặc định */
+  --color-input: var(--input); /* Nền ô nhập liệu */
+  --color-ring: var(--ring); /* Viền khi focus */
+
+  /* --- Màu theo Vai trò --- */
+  --color-primary: var(--primary); /* Màu chủ đạo (Xanh #2572B8) */
+  --color-primary-foreground: var(
+    --primary-foreground
+  ); /* Chữ trên màu chủ đạo */
+  --color-secondary: var(--secondary); /* Màu phụ (nền/button thứ cấp) */
+  --color-secondary-foreground: var(
+    --secondary-foreground
+  ); /* Chữ trên màu phụ */
+  --color-muted: var(--muted); /* Nền/thành phần rất nhẹ */
+  --color-muted-foreground: var(--muted-foreground); /* Chữ nhẹ (thường xám) */
+  --color-accent: var(--accent); /* Màu nhấn (hover, trạng thái nhẹ) */
+  --color-accent-foreground: var(--accent-foreground); /* Chữ trên màu nhấn */
+
+  /* --- Màu Phản hồi Ngữ nghĩa (Quan trọng cho LMS/Thi cử) --- */
+  --color-destructive: var(--destructive); /* Màu lỗi/xóa (Đỏ) */
+  --color-destructive-foreground: var(
+    --destructive-foreground
+  ); /* Chữ trên màu lỗi */
+  --color-success: var(--success); /* Màu thành công (Xanh lá) */
+  --color-success-foreground: var(
+    --success-foreground
+  ); /* Chữ trên màu thành công */
+  --color-warning: var(--warning); /* Màu cảnh báo (Vàng/Cam) */
+  --color-warning-foreground: var(
+    --warning-foreground
+  ); /* Chữ trên màu cảnh báo */
+  --color-info: var(--info); /* Màu thông tin (Xanh dương nhạt/Teal) */
+  --color-info-foreground: var(--info-foreground); /* Chữ trên màu thông tin */
+
+  /* --- Độ bo góc --- */
+  --radius: 0.5rem; /* Giảm nhẹ để trông gọn gàng hơn một chút (tùy chọn) */
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+
+  /* --- Bí danh Font --- */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+/* --- Bảng màu chế độ SÁNG (Light Mode) --- */
+:root {
+  /* --- Font Chữ --- */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+    "Noto Color Emoji";
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+  /* --- Màu Cơ bản & Trung tính (True Gray - H=0) --- */
+  --background: oklch(1 0 0); /* Nền: Trắng */
+  --foreground: oklch(0.13 0.002 0); /* Chữ: Xám rất đậm (~Gray-950) */
+  --card: oklch(1 0 0); /* Nền thẻ: Trắng */
+  --card-foreground: var(--foreground); /* Chữ thẻ: Giống chữ chính */
+  --popover: oklch(1 0 0); /* Nền popover: Trắng */
+  --popover-foreground: var(--foreground); /* Chữ popover: Giống chữ chính */
+  --border: oklch(0.92 0.002 0); /* Viền: Xám nhạt (~Gray-200) */
+  --input: oklch(0.92 0.002 0); /* Nền input: Xám nhạt (~Gray-200) */
+
+  /* --- Màu theo Vai trò --- */
+  --primary: oklch(0.51 0.19 258); /* Chủ đạo: Xanh #2572B8 */
+  --primary-foreground: oklch(1 0 0); /* Chữ trên chủ đạo: Trắng */
+  --secondary: oklch(0.97 0.001 0); /* Phụ: Xám rất nhạt (~Gray-100) */
+  --secondary-foreground: oklch(
+    0.2 0.002 0
+  ); /* Chữ trên phụ: Xám đậm (~Gray-900) */
+  --muted: oklch(0.97 0.001 0); /* Muted: Xám rất nhạt (~Gray-100) */
+  --muted-foreground: oklch(0.45 0.002 0); /* Chữ muted: Xám vừa (~Gray-600) */
+  --accent: oklch(0.92 0.002 0); /* Nhấn: Xám nhạt (~Gray-200) */
+  --accent-foreground: oklch(
+    0.13 0.002 0
+  ); /* Chữ trên nhấn: Xám rất đậm (~Gray-950) */
+  --ring: oklch(0.6 0.21 258); /* Viền focus: Xanh dương sáng hơn */
+
+  /* --- Màu Phản hồi Ngữ nghĩa --- */
+  --destructive: oklch(0.61 0.22 25); /* Lỗi: Đỏ (~Red-600) */
+  --destructive-foreground: oklch(1 0 0); /* Chữ trên lỗi: Trắng */
+  --success: oklch(0.65 0.18 145); /* Thành công: Xanh lá (~Green-600) */
+  --success-foreground: oklch(1 0 0); /* Chữ trên thành công: Trắng */
+  --warning: oklch(0.75 0.18 85); /* Cảnh báo: Cam/Vàng (~Amber-500) */
+  --warning-foreground: oklch(0.2 0.1 85); /* Chữ trên cảnh báo: Nâu đậm */
+  --info: oklch(0.7 0.15 258); /* Thông tin: Xanh dương nhạt (~Blue-400) */
+  --info-foreground: oklch(1 0 0); /* Chữ trên thông tin: Trắng */
+}
+
+/* --- Bảng màu chế độ TỐI (Dark Mode) --- */
+.dark {
+  /* --- Màu Cơ bản & Trung tính (True Gray - H=0) --- */
+  --background: oklch(0.13 0.002 0); /* Nền: Xám rất đậm (~Gray-950) */
+  --foreground: oklch(0.97 0.001 0); /* Chữ: Xám rất nhạt (~Gray-100) */
+  --card: oklch(0.2 0.002 0); /* Nền thẻ: Xám đậm (~Gray-900) */
+  --card-foreground: var(--foreground); /* Chữ thẻ: Giống chữ chính */
+  --popover: oklch(0.2 0.002 0); /* Nền popover: Xám đậm (~Gray-900) */
+  --popover-foreground: var(--foreground); /* Chữ popover: Giống chữ chính */
+  --border: oklch(0.3 0.002 0); /* Viền: Xám tối (~Gray-800) */
+  --input: oklch(0.3 0.002 0); /* Nền input: Xám tối (~Gray-800) */
+
+  /* --- Màu theo Vai trò --- */
+  --primary: oklch(0.6 0.21 258); /* Chủ đạo: Xanh dương sáng hơn */
+  --primary-foreground: oklch(
+    0.15 0.1 260
+  ); /* Chữ trên chủ đạo: Xanh rất đậm/Đen */
+  --secondary: oklch(0.3 0.002 0); /* Phụ: Xám tối (~Gray-800) */
+  --secondary-foreground: var(--foreground); /* Chữ trên phụ: Giống chữ chính */
+  --muted: oklch(0.3 0.002 0); /* Muted: Xám tối (~Gray-800) */
+  --muted-foreground: oklch(0.65 0.001 0); /* Chữ muted: Xám sáng (~Gray-400) */
+  --accent: oklch(0.4 0.002 0); /* Nhấn: Xám tối vừa (~Gray-700) */
+  --accent-foreground: var(--foreground); /* Chữ trên nhấn: Giống chữ chính */
+  --ring: oklch(0.6 0.21 258); /* Viền focus: Giống primary dark mode */
+
+  /* --- Màu Phản hồi Ngữ nghĩa --- */
+  --destructive: oklch(0.7 0.2 25); /* Lỗi: Đỏ sáng hơn (~Red-500) */
+  --destructive-foreground: oklch(
+    0.1 0.05 25
+  ); /* Chữ trên lỗi: Đỏ rất đậm/Đen */
+  --success: oklch(
+    0.75 0.19 145
+  ); /* Thành công: Xanh lá sáng hơn (~Green-500) */
+  --success-foreground: oklch(
+    0.05 0.05 145
+  ); /* Chữ trên thành công: Xanh lá rất đậm/Đen */
+  --warning: oklch(0.8 0.2 85); /* Cảnh báo: Cam/Vàng sáng hơn (~Amber-400) */
+  --warning-foreground: oklch(
+    0.2 0.1 85
+  ); /* Chữ trên cảnh báo: Nâu đậm (giữ nguyên) */
+  --info: oklch(
+    0.75 0.18 258
+  ); /* Thông tin: Xanh dương nhạt hơn nữa (~Blue-300) */
+  --info-foreground: oklch(
+    0.1 0.1 260
+  ); /* Chữ trên thông tin: Xanh rất đậm/Đen */
+}
+
+/* --- Áp dụng Style cơ bản vào lớp 'base' của Tailwind --- */
+@layer base {
+  * {
+    /* Áp dụng viền mặc định và viền focus (outline) */
+    @apply border-border;
+  }
+  *:focus-visible {
+    /* Chỉ hiển thị outline khi focus bằng bàn phím/tab, dùng màu ring */
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  body {
+    /* Đặt màu nền, font chữ, màu chữ mặc định và làm mịn font */
+    @apply font-sans bg-background text-foreground antialiased;
+  }
+}

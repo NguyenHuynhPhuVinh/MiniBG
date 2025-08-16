@@ -1,0 +1,31 @@
+{
+  "user_id": 101,
+  "name": "Nguyễn Văn A",
+  "total_points": 53210,
+  "current_level": 27,
+  "experience_points": 190,
+  "experience_to_next_level": 380,
+  "tier_info": {
+    "tier_name": "Silver",
+    "tier_color": "#C0C0C0",
+    "level_in_tier": 3,
+    "xp_in_tier": 190,
+    "xp_required_for_tier": 380
+  },
+  "next_level_info": {
+    "level": 28,
+    "tier_name": "Silver",
+    "tier_color": "#C0C0C0",
+    "xp_required": 380
+  },
+  "stats": {
+    "total_quizzes_completed": 142,
+    "total_correct_answers": 1820,
+    "total_questions_answered": 2350,
+    "average_response_time": 2750,
+    "best_streak": 7,
+    "current_streak": 3,
+    "speed_bonus_earned": 4200,
+    "perfect_scores": 9
+  }
+}

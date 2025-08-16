@@ -1,0 +1,35 @@
+{
+  "$schema": "./schemas/scoring-config.schema.json",
+  "version": "1.0.0",
+  "updatedAt": "2025-08-08",
+  "difficulties": {
+    "easy": { "basePoints": 100, "speedBonus": { "windowSec": 5, "max": 30 } },
+    "medium": {
+      "basePoints": 150,
+      "speedBonus": { "windowSec": 5, "max": 40 }
+    },
+    "hard": { "basePoints": 200, "speedBonus": { "windowSec": 5, "max": 50 } }
+  },
+  "streak": {
+    "bonuses": [
+      { "min": 4, "bonus": 15 },
+      { "min": 5, "bonus": 25 },
+      { "min": 6, "bonus": 35 },
+      { "min": 7, "bonus": 50 }
+    ],
+    "resetOn": ["wrong", "timeout"]
+  },
+  "rounds": {
+    "secondAndThird": {
+      "basePercent": 50,
+      "allowSpeedBonus": false,
+      "allowStreak": false
+    },
+    "opportunity": { "round": 2, "basePercent": 100 }
+  },
+  "specialQuestions": {
+    "golden": { "count": 1, "baseMultiplier": 2 },
+    "speed": { "count": 1, "speedBonusMultiplier": 2 },
+    "opportunity": { "count": 1 }
+  }
+}

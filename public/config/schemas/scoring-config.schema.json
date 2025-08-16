@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "scoring-config.schema.json",
+  "title": "ScoringConfig",
+  "type": "object",
+  "required": [
+    "version",
+    "updatedAt",
+    "difficulties",
+    "streak",
+    "rounds",
+    "specialQuestions"
+  ],
+  "properties": {
+    "version": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "difficulties": {
+      "type": "object",
+      "required": ["easy", "medium", "hard"],
+      "properties": {
+        "easy": { "$ref": "#/definitions/difficulty" },
+        "medium": { "$ref": "#/definitions/difficulty" },
+        "hard": { "$ref": "#/definitions/difficulty" }
+      }
+    },
+    "streak": {
+      "type": "object",
+      "required": ["bonuses", "resetOn"],
+      "properties": {
+        "bonuses": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/streakBonus" },
+          "minItems": 1
+        },
+        "resetOn": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["wrong", "timeout"] },
+          "uniqueItems": true
+        }
+      }
+    },
+    "rounds": {
+      "type": "object",
+      "required": ["secondAndThird", "opportunity"],
+      "properties": {
+        "secondAndThird": {
+          "type": "object",
+          "required": ["basePercent", "allowSpeedBonus", "allowStreak"],
+          "properties": {
+            "basePercent": { "type": "number", "minimum": 0, "maximum": 100 },
+            "allowSpeedBonus": { "type": "boolean" },
+            "allowStreak": { "type": "boolean" }
+          }
+        },
+        "opportunity": {
+          "type": "object",
+          "required": ["round", "basePercent"],
+          "properties": {
+            "round": { "type": "integer", "minimum": 2, "maximum": 3 },
+            "basePercent": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        }
+      }
+    },
+    "specialQuestions": {
+      "type": "object",
+      "required": ["golden", "speed", "opportunity"],
+      "properties": {
+        "golden": {
+          "type": "object",
+          "required": ["count", "baseMultiplier"],
+          "properties": {
+            "count": { "type": "integer", "minimum": 0 },
+            "baseMultiplier": { "type": "number", "minimum": 1 }
+          }
+        },
+        "speed": {
+          "type": "object",
+          "required": ["count", "speedBonusMultiplier"],
+          "properties": {
+            "count": { "type": "integer", "minimum": 0 },
+            "speedBonusMultiplier": { "type": "number", "minimum": 1 }
+          }
+        },
+        "opportunity": {
+          "type": "object",
+          "required": ["count"],
+          "properties": {
+            "count": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "difficulty": {
+      "type": "object",
+      "required": ["basePoints", "speedBonus"],
+      "properties": {
+        "basePoints": { "type": "integer", "minimum": 0 },
+        "speedBonus": {
+          "type": "object",
+          "required": ["windowSec", "max"],
+          "properties": {
+            "windowSec": { "type": "number", "minimum": 0 },
+            "max": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "streakBonus": {
+      "type": "object",
+      "required": ["min", "bonus"],
+      "properties": {
+        "min": { "type": "integer", "minimum": 1 },
+        "bonus": { "type": "integer" }
+      }
+    }
+  }
+}

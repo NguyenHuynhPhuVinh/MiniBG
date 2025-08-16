@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "message": "Mocked currency balance (GAME_SYSTEM single currency)",
+  "data": {
+    "SYNC": {
+      "balance": 1530,
+      "total_earned": 45210,
+      "total_spent": 43680,
+      "daily_earned_today": 300
+    }
+  }
+}

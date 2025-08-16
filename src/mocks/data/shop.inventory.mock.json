@@ -1,0 +1,184 @@
+{
+  "avatars": [
+    {
+      "id": "narwhal",
+      "name": "Kỳ Lân Biển",
+      "price": 300,
+      "asset": "avatar-animal-pack/narwhal.png",
+      "rarity": "rare",
+      "description": "Sinh vật huyền thoại của đại dương với chiếc sừng ma thuật"
+    },
+    {
+      "id": "panda",
+      "name": "Gấu Trúc Dễ Thương",
+      "price": 250,
+      "asset": "avatar-animal-pack/panda.png",
+      "rarity": "common",
+      "description": "Gấu trúc đáng yêu với bộ lông đen trắng đặc trưng"
+    },
+    {
+      "id": "whale",
+      "name": "Cá Voi Khổng Lồ",
+      "price": 400,
+      "asset": "avatar-animal-pack/whale.png",
+      "rarity": "epic",
+      "description": "Chúa tể của đại dương với sức mạnh vô song"
+    },
+    {
+      "id": "elephant",
+      "name": "Voi Khôn Ngoan",
+      "price": 350,
+      "asset": "avatar-animal-pack/elephant.png",
+      "rarity": "rare",
+      "description": "Biểu tượng của trí tuệ và sức mạnh"
+    },
+    {
+      "id": "penguin",
+      "name": "Chim Cánh Cụt",
+      "price": 180,
+      "asset": "avatar-animal-pack/penguin.png",
+      "rarity": "common",
+      "description": "Chim cánh cụt đáng yêu từ Nam Cực"
+    },
+    {
+      "id": "owl",
+      "name": "Cú Mèo Thông Thái",
+      "price": 320,
+      "asset": "avatar-animal-pack/owl.png",
+      "rarity": "rare",
+      "description": "Biểu tượng của tri thức và sự thông thái"
+    },
+    {
+      "id": "monkey",
+      "name": "Khỉ Tinh Nghịch",
+      "price": 200,
+      "asset": "avatar-animal-pack/monkey.png",
+      "rarity": "common",
+      "description": "Khỉ thông minh và tinh nghịch"
+    },
+    {
+      "id": "bear",
+      "name": "Gấu Nâu Mạnh Mẽ",
+      "price": 380,
+      "asset": "avatar-animal-pack/bear.png",
+      "rarity": "rare",
+      "description": "Gấu nâu với sức mạnh phi thường"
+    }
+  ],
+  "frames": [
+    {
+      "id": "ocean-song-frame",
+      "name": "Khung Bài Ca Đại Dương",
+      "price": 150,
+      "asset": "avatar-frame-pack/ocean-song-frame.png",
+      "rarity": "rare",
+      "description": "Khung ảnh với giai điệu của đại dương xanh"
+    },
+    {
+      "id": "crimson-phoenix-frame",
+      "name": "Khung Phượng Hoàng Đỏ",
+      "price": 400,
+      "asset": "avatar-frame-pack/crimson-phoenix-frame.png",
+      "rarity": "epic",
+      "description": "Khung ảnh với sức mạnh của phượng hoàng lửa"
+    },
+    {
+      "id": "cyber-glitch-frame",
+      "name": "Khung Cyber Glitch",
+      "price": 350,
+      "asset": "avatar-frame-pack/cyber-glitch-frame.png",
+      "rarity": "epic",
+      "description": "Khung ảnh futuristic với hiệu ứng glitch"
+    },
+    {
+      "id": "violet-starlight-frame",
+      "name": "Khung Ánh Sao Tím",
+      "price": 500,
+      "asset": "avatar-frame-pack/violet-starlight-frame.png",
+      "rarity": "legendary",
+      "description": "Khung ảnh huyền bí với ánh sao tím"
+    },
+    {
+      "id": "nation-of-pyro-frame",
+      "name": "Khung Quốc Gia Lửa",
+      "price": 300,
+      "asset": "avatar-frame-pack/nation-of-pyro-frame.png",
+      "rarity": "rare",
+      "description": "Khung ảnh với sức mạnh của nguyên tố lửa"
+    },
+    {
+      "id": "drumalong-festival-frame",
+      "name": "Khung Lễ Hội Trống",
+      "price": 200,
+      "asset": "avatar-frame-pack/drumalong-festival-frame.png",
+      "rarity": "common",
+      "description": "Khung ảnh lễ hội với âm thanh trống vui tươi"
+    }
+  ],
+  "emojis": [
+    {
+      "id": "beaming-face-with-smiling-eyes",
+      "name": "Mặt Cười Rạng Rỡ",
+      "price": 10,
+      "asset": "vector-emojis-pack/beaming-face-with-smiling-eyes.png",
+      "rarity": "common",
+      "description": "Nụ cười rạng rỡ với đôi mắt cười"
+    },
+    {
+      "id": "face-with-tears-of-joy",
+      "name": "Cười Đến Nước Mắt",
+      "price": 15,
+      "asset": "vector-emojis-pack/face-with-tears-of-joy.png",
+      "rarity": "common",
+      "description": "Cười vui đến mức chảy nước mắt"
+    },
+    {
+      "id": "grinning-face-with-smiling-eyes",
+      "name": "Cười Toe Toét",
+      "price": 12,
+      "asset": "vector-emojis-pack/grinning-face-with-smiling-eyes.png",
+      "rarity": "common",
+      "description": "Nụ cười toe toét đáng yêu"
+    },
+    {
+      "id": "winking-face",
+      "name": "Nháy Mắt",
+      "price": 8,
+      "asset": "vector-emojis-pack/winking-face.png",
+      "rarity": "common",
+      "description": "Nháy mắt tinh nghịch"
+    },
+    {
+      "id": "star-struck",
+      "name": "Mê Mẩn Ngôi Sao",
+      "price": 25,
+      "asset": "vector-emojis-pack/star-struck.png",
+      "rarity": "rare",
+      "description": "Đôi mắt sáng như ngôi sao"
+    },
+    {
+      "id": "exploding-head",
+      "name": "Đầu Nổ Tung",
+      "price": 35,
+      "asset": "vector-emojis-pack/exploding-head.png",
+      "rarity": "epic",
+      "description": "Biểu cảm shock cực độ"
+    },
+    {
+      "id": "cowboy-hat-face",
+      "name": "Cao Bồi",
+      "price": 30,
+      "asset": "vector-emojis-pack/cowboy-hat-face.png",
+      "rarity": "rare",
+      "description": "Mặt với mũ cao bồi phong cách"
+    },
+    {
+      "id": "face-with-monocle",
+      "name": "Kính Đơn Quý Tộc",
+      "price": 40,
+      "asset": "vector-emojis-pack/face-with-monocle.png",
+      "rarity": "epic",
+      "description": "Phong cách quý tộc với kính đơn"
+    }
+  ]
+}

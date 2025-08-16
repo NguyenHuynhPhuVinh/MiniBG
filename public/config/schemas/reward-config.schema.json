@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "reward-config.schema.json",
+  "title": "RewardConfig",
+  "type": "object",
+  "required": ["version", "updatedAt", "syncoin", "xp"],
+  "properties": {
+    "version": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "syncoin": {
+      "type": "object",
+      "required": [
+        "minPerMatch",
+        "maxPerMatch",
+        "perScoreDivisor",
+        "perCorrectAnswer",
+        "rankingBonus"
+      ],
+      "properties": {
+        "minPerMatch": { "type": "integer", "minimum": 0 },
+        "maxPerMatch": { "type": "integer", "minimum": 0 },
+        "perScoreDivisor": { "type": "number", "minimum": 1 },
+        "perCorrectAnswer": { "type": "number", "minimum": 0 },
+        "rankingBonus": { "$ref": "#/definitions/rangeBonus" },
+        "achievementBonus": { "$ref": "#/definitions/namedBonus" }
+      }
+    },
+    "xp": {
+      "type": "object",
+      "required": [
+        "participation",
+        "perCorrect",
+        "perScoreDivisor",
+        "rankingXp"
+      ],
+      "properties": {
+        "participation": { "type": "integer", "minimum": 0 },
+        "perCorrect": { "type": "integer", "minimum": 0 },
+        "perScoreDivisor": { "type": "number", "minimum": 1 },
+        "rankingXp": { "$ref": "#/definitions/rangeBonus" },
+        "achievementXp": { "$ref": "#/definitions/namedBonus" }
+      }
+    },
+    "antiAbuse": {
+      "type": "object",
+      "properties": {
+        "coinSoftCapPerHour": { "type": "integer", "minimum": 0 },
+        "xpSoftCapPerHour": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "definitions": {
+    "rangeBonus": {
+      "type": "object",
+      "additionalProperties": { "type": ["number", "integer"] }
+    },
+    "namedBonus": {
+      "type": "object",
+      "additionalProperties": { "type": ["number", "integer"] }
+    }
+  }
+}

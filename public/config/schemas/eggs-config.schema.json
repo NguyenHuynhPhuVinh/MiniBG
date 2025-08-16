@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "eggs-config.schema.json",
+  "title": "EggsConfig",
+  "type": "object",
+  "required": [
+    "version",
+    "updatedAt",
+    "minigame",
+    "opening",
+    "fairness",
+    "dropRates",
+    "pools",
+    "duplicateConversion"
+  ],
+  "properties": {
+    "version": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "minigame": {
+      "type": "object",
+      "required": ["triggerCorrectCount", "durationSec"],
+      "properties": {
+        "triggerCorrectCount": { "type": "integer", "minimum": 1 },
+        "durationSec": { "type": "number", "minimum": 1 }
+      }
+    },
+    "opening": {
+      "type": "object",
+      "required": ["instant"],
+      "properties": { "instant": { "type": "boolean" } }
+    },
+    "fairness": {
+      "type": "object",
+      "properties": { "levelIndependent": { "type": "boolean" } }
+    },
+    "dropRates": {
+      "type": "object",
+      "required": ["basis", "types"],
+      "properties": {
+        "basis": { "type": "integer", "minimum": 1 },
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "weight"],
+            "properties": {
+              "id": { "type": "string" },
+              "weight": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "rewards": { "type": "object", "additionalProperties": true },
+    "pools": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["type", "weight"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["avatar", "frame", "emoji", "xp", "coin"]
+            },
+            "rarity": { "type": "array", "items": { "type": "string" } },
+            "range": {
+              "type": "array",
+              "items": { "type": "number" },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "weight": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "duplicateConversion": {
+      "type": "object",
+      "properties": {
+        "avatar": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "frame": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "emoji": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

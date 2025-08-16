@@ -1,0 +1,78 @@
+{
+  "$schema": "./schemas/items-rarity.schema.json",
+  "version": "1.0.0",
+  "updatedAt": "2025-08-08",
+  "avatars": {
+    "Common": ["chick", "dog", "rabbit", "pig", "cow", "duck", "frog", "bear"],
+    "Uncommon": [
+      "monkey",
+      "horse",
+      "panda",
+      "goat",
+      "chicken",
+      "zebra",
+      "buffalo"
+    ],
+    "Rare": ["crocodile", "gorilla", "rhino", "hippo"],
+    "Epic": ["giraffe", "parrot", "owl", "snake", "penguin", "walrus"],
+    "Legendary": ["whale", "narwhal", "moose", "sloth"]
+  },
+  "frames": {
+    "Basic": ["ocean-song-frame", "drumalong-festival-frame"],
+    "Premium": [
+      "violet-starlight-frame",
+      "cyber-glitch-frame",
+      "nation-of-pyro-frame",
+      "crimson-phoenix-frame"
+    ]
+  },
+  "emojis": {
+    "Common": [
+      "slightly-smiling-face",
+      "grinning-face",
+      "winking-face",
+      "sleepy-face",
+      "worried-face",
+      "relieved-face",
+      "thinking-face",
+      "confused-face"
+    ],
+    "Uncommon": [
+      "grinning-face-with-smiling-eyes",
+      "grinning-face-with-big-eyes",
+      "smiling-face-with-smiling-eyes",
+      "smiling-face",
+      "hugging-face",
+      "kissing-face",
+      "kissing-face-with-smiling-eyes",
+      "smiling-face-with-halo"
+    ],
+    "Rare": [
+      "cowboy-hat-face",
+      "star-struck",
+      "partying-face",
+      "face-with-tongue",
+      "zany-face",
+      "smirking-face",
+      "face-screaming-in-fear",
+      "face-vomiting"
+    ],
+    "Epic": [
+      "melting-face",
+      "face-in-clouds",
+      "face-with-diagonal-mouth",
+      "face-with-spiral-eyes",
+      "dizzy-face",
+      "disguised-face",
+      "face-with-monocle",
+      "shushing-face"
+    ],
+    "Legendary": [
+      "robot",
+      "exploding-head",
+      "pile-of-poo",
+      "face-with-symbols-on-mouth",
+      "clown-face"
+    ]
+  }
+}

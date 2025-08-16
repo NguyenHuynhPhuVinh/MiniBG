@@ -1,0 +1,262 @@
+{
+  "customization": {
+    "equipped_avatar_id": 3,
+    "equipped_frame_id": 102,
+    "equipped_name_effect_id": 0
+  },
+  "inventory": {
+    "avatars": [
+      {
+        "user_inventory_id": 10001,
+        "item_id": 1,
+        "item_type": "avatar",
+        "unlocked_at": "2025-01-01T00:00:00.000Z",
+        "Avatar": {
+          "avatar_id": 1,
+          "avatar_name": "Gà Con",
+          "avatar_code": "chick",
+          "description": "Avatar khởi đầu dễ thương",
+          "image_path": "/avatar-animal-pack/chick.png",
+          "rarity": "COMMON",
+          "rarity_display": "Thông thường",
+          "rarity_color": "#9CA3AF",
+          "unlock_type": "DEFAULT",
+          "unlock_description": "Mặc định",
+          "decomposition_value": 0,
+          "is_premium": false,
+          "is_default": true,
+          "sort_order": 1
+        }
+      },
+      {
+        "user_inventory_id": 10002,
+        "item_id": 2,
+        "item_type": "avatar",
+        "unlocked_at": "2025-01-10T00:00:00.000Z",
+        "Avatar": {
+          "avatar_id": 2,
+          "avatar_name": "Chó",
+          "avatar_code": "dog",
+          "description": "Người bạn trung thành",
+          "image_path": "/avatar-animal-pack/dog.png",
+          "rarity": "COMMON",
+          "rarity_display": "Thông thường",
+          "rarity_color": "#9CA3AF",
+          "unlock_type": "LEVEL",
+          "unlock_description": "Cấp 5",
+          "decomposition_value": 2,
+          "is_premium": false,
+          "is_default": false,
+          "sort_order": 2
+        }
+      },
+      {
+        "user_inventory_id": 10003,
+        "item_id": 3,
+        "item_type": "avatar",
+        "unlocked_at": "2025-01-15T00:00:00.000Z",
+        "Avatar": {
+          "avatar_id": 3,
+          "avatar_name": "Thỏ",
+          "avatar_code": "rabbit",
+          "description": "Nhanh nhẹn và thông minh",
+          "image_path": "/avatar-animal-pack/rabbit.png",
+          "rarity": "COMMON",
+          "rarity_display": "Thông thường",
+          "rarity_color": "#9CA3AF",
+          "unlock_type": "LEVEL",
+          "unlock_description": "Cấp 10",
+          "decomposition_value": 2,
+          "is_premium": false,
+          "is_default": false,
+          "sort_order": 3
+        }
+      },
+      {
+        "user_inventory_id": 10004,
+        "item_id": 4,
+        "item_type": "avatar",
+        "unlocked_at": "2025-01-20T00:00:00.000Z",
+        "Avatar": {
+          "avatar_id": 4,
+          "avatar_name": "Gấu",
+          "avatar_code": "bear",
+          "description": "Mạnh mẽ và bảo vệ",
+          "image_path": "/avatar-animal-pack/bear.png",
+          "rarity": "UNCOMMON",
+          "rarity_display": "Không phổ biến",
+          "rarity_color": "#10B981",
+          "unlock_type": "LEVEL",
+          "unlock_description": "Cấp 15",
+          "decomposition_value": 5,
+          "is_premium": false,
+          "is_default": false,
+          "sort_order": 4
+        }
+      },
+      {
+        "user_inventory_id": 10005,
+        "item_id": 5,
+        "item_type": "avatar",
+        "unlocked_at": "2025-01-25T00:00:00.000Z",
+        "Avatar": {
+          "avatar_id": 5,
+          "avatar_name": "Gấu Trúc",
+          "avatar_code": "panda",
+          "description": "Đáng yêu và hiếm có",
+          "image_path": "/avatar-animal-pack/panda.png",
+          "rarity": "RARE",
+          "rarity_display": "Hiếm",
+          "rarity_color": "#3B82F6",
+          "unlock_type": "ACHIEVEMENT",
+          "unlock_description": "Hoàn thành 50 bài tập",
+          "decomposition_value": 10,
+          "is_premium": false,
+          "is_default": false,
+          "sort_order": 5
+        }
+      }
+    ],
+    "frames": [
+      {
+        "user_inventory_id": 11001,
+        "item_id": 101,
+        "item_type": "frame",
+        "unlocked_at": "2025-01-20T00:00:00.000Z",
+        "Frame": {
+          "frame_id": 101,
+          "frame_name": "Ocean Song",
+          "frame_code": "ocean-song-frame",
+          "description": "Khung chủ đề biển xanh",
+          "image_path": "/avatar-frame-pack/ocean-song-frame.png",
+          "rarity": "UNCOMMON",
+          "rarity_display": "Không phổ biến",
+          "rarity_color": "#10B981",
+          "unlock_type": "DEFAULT",
+          "unlock_description": "Sở hữu mặc định",
+          "tier_name": "Basic",
+          "tier_color": "#10B981",
+          "decomposition_value": 5,
+          "is_premium": false,
+          "is_tier_frame": false,
+          "is_default": true,
+          "sort_order": 1
+        }
+      },
+      {
+        "user_inventory_id": 11002,
+        "item_id": 102,
+        "item_type": "frame",
+        "unlocked_at": "2025-01-25T00:00:00.000Z",
+        "Frame": {
+          "frame_id": 102,
+          "frame_name": "Drumalong Festival",
+          "frame_code": "drumalong-festival-frame",
+          "description": "Khung lễ hội sôi động",
+          "image_path": "/avatar-frame-pack/drumalong-festival-frame.png",
+          "rarity": "RARE",
+          "rarity_display": "Hiếm",
+          "rarity_color": "#3B82F6",
+          "unlock_type": "LEVEL",
+          "unlock_description": "Cấp 20",
+          "tier_name": "Basic",
+          "tier_color": "#3B82F6",
+          "decomposition_value": 10,
+          "is_premium": false,
+          "is_tier_frame": false,
+          "is_default": false,
+          "sort_order": 2
+        }
+      }
+    ],
+    "emojis": [
+      {
+        "user_inventory_id": 12001,
+        "item_id": 201,
+        "item_type": "emoji",
+        "unlocked_at": "2025-01-22T00:00:00.000Z",
+        "Emoji": {
+          "emoji_id": 201,
+          "emoji_name": "Face with Tears of Joy",
+          "emoji_code": "face-with-tears-of-joy",
+          "emoji_unicode": "U+1F602",
+          "emoji_image": "/vector-emojis-pack/face-with-tears-of-joy.png",
+          "emoji_display": "😂",
+          "description": "Cười ra nước mắt",
+          "rarity": "COMMON",
+          "rarity_display": "Thông thường",
+          "rarity_color": "#9CA3AF",
+          "unlock_type": "DEFAULT",
+          "unlock_description": "Sở hữu mặc định",
+          "category": "Reaction",
+          "category_display": "Phản ứng",
+          "decomposition_value": 0,
+          "is_premium": false,
+          "is_animated": false,
+          "is_default": true,
+          "sort_order": 1
+        }
+      },
+      {
+        "user_inventory_id": 12002,
+        "item_id": 202,
+        "item_type": "emoji",
+        "unlocked_at": "2025-01-23T00:00:00.000Z",
+        "Emoji": {
+          "emoji_id": 202,
+          "emoji_name": "Thinking Face",
+          "emoji_code": "thinking-face",
+          "emoji_unicode": "U+1F914",
+          "emoji_image": "/vector-emojis-pack/thinking-face.png",
+          "emoji_display": "🤔",
+          "description": "Đang suy nghĩ",
+          "rarity": "COMMON",
+          "rarity_display": "Thông thường",
+          "rarity_color": "#9CA3AF",
+          "unlock_type": "LEVEL",
+          "unlock_description": "Cấp 8",
+          "category": "Reaction",
+          "category_display": "Phản ứng",
+          "decomposition_value": 0,
+          "is_premium": false,
+          "is_animated": false,
+          "is_default": false,
+          "sort_order": 2
+        }
+      },
+      {
+        "user_inventory_id": 12003,
+        "item_id": 203,
+        "item_type": "emoji",
+        "unlocked_at": "2025-01-24T00:00:00.000Z",
+        "Emoji": {
+          "emoji_id": 203,
+          "emoji_name": "Star Struck",
+          "emoji_code": "star-struck",
+          "emoji_unicode": "U+1F929",
+          "emoji_image": "/vector-emojis-pack/star-struck.png",
+          "emoji_display": "🤩",
+          "description": "Ngưỡng mộ, thần tượng",
+          "rarity": "UNCOMMON",
+          "rarity_display": "Không phổ biến",
+          "rarity_color": "#10B981",
+          "unlock_type": "ACHIEVEMENT",
+          "unlock_description": "Đạt điểm cao",
+          "category": "Reaction",
+          "category_display": "Phản ứng",
+          "decomposition_value": 2,
+          "is_premium": false,
+          "is_animated": false,
+          "is_default": false,
+          "sort_order": 3
+        }
+      }
+    ]
+  },
+  "statistics": {
+    "total_items": 10,
+    "completion_rate": "15.6%"
+  },
+  "user_level": 27,
+  "user_tier": "Silver"
+}

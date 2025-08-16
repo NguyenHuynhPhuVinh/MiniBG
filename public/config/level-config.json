@@ -1,0 +1,46 @@
+{
+  "$schema": "./schemas/level-config.schema.json",
+  "version": "1.0.0",
+  "updatedAt": "2025-08-08",
+  "maxLevel": 120,
+  "tiers": [
+    { "name": "Wood", "range": [1, 12] },
+    { "name": "Bronze", "range": [13, 24] },
+    { "name": "Silver", "range": [25, 36] },
+    { "name": "Gold", "range": [37, 48] },
+    { "name": "Platinum", "range": [49, 60] },
+    { "name": "Onyx", "range": [61, 72] },
+    { "name": "Sapphire", "range": [73, 84] },
+    { "name": "Ruby", "range": [85, 96] },
+    { "name": "Amethyst", "range": [97, 108] },
+    { "name": "Master", "range": [109, 120] }
+  ],
+  "xpCurve": {
+    "type": "piecewise",
+    "pieces": [
+      { "levels": [1, 60], "base": 100, "growth": 1.15 },
+      { "levels": [61, 120], "increment": 800 }
+    ]
+  },
+  "levelRewards": {
+    "coinsPerLevel": null,
+    "notes": "SynCoin không phát theo level. SynCoin đến từ Quiz Racing và quy đổi duplicate từ trứng."
+  },
+  "unlocks": {
+    "avatarsByLevel": [
+      { "level": 1, "avatar": "chick" },
+      { "level": 5, "avatar": "dog" },
+      { "level": 10, "avatar": "rabbit" },
+      { "level": 15, "avatar": "cow" },
+      { "level": 20, "avatar": "bear" },
+      { "level": 25, "avatar": "elephant" },
+      { "level": 30, "avatar": "panda" },
+      { "level": 35, "avatar": "monkey" },
+      { "level": 40, "avatar": "horse" },
+      { "level": 45, "avatar": "duck" },
+      { "level": 50, "avatar": "pig" },
+      { "level": 55, "avatar": "goat" }
+    ],
+    "notes": "Các avatar còn lại nhận qua trứng mini game hoặc mua bằng SynCoin trong cửa hàng."
+  }
+}

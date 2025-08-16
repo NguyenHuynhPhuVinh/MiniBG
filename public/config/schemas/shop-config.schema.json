@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "shop-config.schema.json",
+  "title": "ShopConfig",
+  "type": "object",
+  "required": ["version", "updatedAt", "policy"],
+  "properties": {
+    "version": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "policy": {
+      "type": "object",
+      "required": ["currency", "tierIndependent", "sellEggs"],
+      "properties": {
+        "currency": { "type": "string" },
+        "tierIndependent": { "type": "boolean" },
+        "sellEggs": { "type": "boolean" }
+      }
+    },
+    "rotation": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "periodDays": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "frames": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/shopItem" }
+    },
+    "emojis": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/shopItem" }
+    },
+    "avatars": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/shopItem" }
+    }
+  },
+  "definitions": {
+    "shopItem": {
+      "type": "object",
+      "required": ["id", "price", "asset"],
+      "properties": {
+        "id": { "type": "string" },
+        "price": { "type": "number", "minimum": 0 },
+        "asset": { "type": "string" },
+        "available": { "type": "boolean" }
+      }
+    }
+  }
+}

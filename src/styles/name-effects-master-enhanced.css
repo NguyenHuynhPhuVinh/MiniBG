@@ -1,0 +1,352 @@
+/* Master Tier Name Effects - Enhanced & Bold */
+/* Maximum impact, vibrant colors, dynamic animations */
+
+/* ===== MASTER TIER - Ultimate Power ===== */
+
+.name-effect-master-gold {
+  color: #b45309;
+  font-weight: 900;
+  letter-spacing: 1px;
+  animation: master-gold-supreme 3s ease-in-out infinite;
+}
+
+.dark .name-effect-master-gold {
+  color: #fbbf24;
+  font-weight: 900;
+  animation: master-gold-supreme-dark 3s ease-in-out infinite;
+}
+
+@keyframes master-gold-supreme {
+  0%, 100% {
+    color: #b45309;
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    color: #f59e0b;
+    transform: translateY(-2px) scale(1.05);
+  }
+}
+
+@keyframes master-gold-supreme-dark {
+  0%, 100% {
+    color: #fbbf24;
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    color: #fde047;
+    transform: translateY(-2px) scale(1.05);
+  }
+}
+
+.name-effect-master-rainbow {
+  font-weight: 900;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, 
+    #dc2626, #ea580c, #ca8a04, #16a34a, 
+    #2563eb, #7c3aed, #c026d3, #dc2626);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: master-rainbow-power 4s linear infinite;
+  color: #dc2626; /* Fallback */
+}
+
+.dark .name-effect-master-rainbow {
+  background: linear-gradient(90deg, 
+    #f87171, #fb923c, #fbbf24, #4ade80, 
+    #60a5fa, #a78bfa, #f472b6, #f87171);
+  color: #f87171; /* Fallback */
+}
+
+@keyframes master-rainbow-power {
+  0% { 
+    background-position: 0% 50%; 
+    transform: translateY(0px) scale(1);
+  }
+  25% { 
+    background-position: 100% 25%; 
+    transform: translateY(-1px) translateX(1px) scale(1.02);
+  }
+  50% { 
+    background-position: 200% 50%; 
+    transform: translateY(-2px) scale(1.04);
+  }
+  75% { 
+    background-position: 100% 75%; 
+    transform: translateY(-1px) translateX(-1px) scale(1.02);
+  }
+  100% { 
+    background-position: 0% 50%; 
+    transform: translateY(0px) scale(1);
+  }
+}
+
+.name-effect-master-divine {
+  color: #1f2937;
+  font-weight: 900;
+  letter-spacing: 1px;
+  animation: master-divine-ascension 6s ease-in-out infinite;
+}
+
+.dark .name-effect-master-divine {
+  color: #ffffff;
+  font-weight: 900;
+  animation: master-divine-ascension-dark 6s ease-in-out infinite;
+}
+
+@keyframes master-divine-ascension {
+  0%, 100% {
+    color: #1f2937;
+    transform: translateY(0px) scale(1);
+  }
+  25% {
+    color: #374151;
+    transform: translateY(-1px) scale(1.02);
+  }
+  50% {
+    color: #4b5563;
+    transform: translateY(-3px) scale(1.06);
+  }
+  75% {
+    color: #374151;
+    transform: translateY(-1.5px) scale(1.03);
+  }
+}
+
+@keyframes master-divine-ascension-dark {
+  0%, 100% {
+    color: #ffffff;
+    transform: translateY(0px) scale(1);
+  }
+  25% {
+    color: #f9fafb;
+    transform: translateY(-1px) scale(1.02);
+  }
+  50% {
+    color: #f3f4f6;
+    transform: translateY(-3px) scale(1.06);
+  }
+  75% {
+    color: #f9fafb;
+    transform: translateY(-1.5px) scale(1.03);
+  }
+}
+
+.name-effect-master-mythical {
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  background: linear-gradient(45deg, 
+    #be185d, #7c2d12, #1e40af, #be185d, 
+    #7c3aed, #0891b2, #be185d, #a21caf,
+    #be185d, #7c2d12, #1e40af, #be185d);
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: master-mythical-legend 8s ease-in-out infinite;
+  color: #be185d; /* Fallback */
+}
+
+.dark .name-effect-master-mythical {
+  background: linear-gradient(45deg, 
+    #f472b6, #fb923c, #60a5fa, #f472b6, 
+    #a78bfa, #22d3ee, #f472b6, #e879f9,
+    #f472b6, #fb923c, #60a5fa, #f472b6);
+  color: #f472b6; /* Fallback */
+}
+
+@keyframes master-mythical-legend {
+  0%, 100% {
+    background-position: 0% 50%;
+    transform: translate(0px, 0px) rotate(0deg) scale(1);
+  }
+  20% {
+    background-position: 100% 20%;
+    transform: translate(1px, -1px) rotate(1deg) scale(1.02);
+  }
+  40% {
+    background-position: 200% 80%;
+    transform: translate(0px, -2px) rotate(0deg) scale(1.04);
+  }
+  60% {
+    background-position: 300% 100%;
+    transform: translate(-1px, -1.5px) rotate(-1deg) scale(1.03);
+  }
+  80% {
+    background-position: 100% 20%;
+    transform: translate(0.5px, -0.5px) rotate(0.5deg) scale(1.01);
+  }
+}
+
+.name-effect-master-infinite {
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  background: linear-gradient(90deg, 
+    #6b7280, #0891b2, #7c3aed, #dc2626, 
+    #059669, #7c2d12, #be185d, #1e40af,
+    #6b7280, #0891b2, #7c3aed, #dc2626,
+    #059669, #7c2d12, #be185d, #1e40af);
+  background-size: 500% 500%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: master-infinite-transcendence 10s ease-in-out infinite;
+  color: #6b7280; /* Fallback */
+}
+
+.dark .name-effect-master-infinite {
+  background: linear-gradient(90deg, 
+    #d1d5db, #22d3ee, #a78bfa, #f87171, 
+    #10b981, #fb923c, #f472b6, #60a5fa,
+    #d1d5db, #22d3ee, #a78bfa, #f87171,
+    #10b981, #fb923c, #f472b6, #60a5fa);
+  color: #d1d5db; /* Fallback */
+}
+
+@keyframes master-infinite-transcendence {
+  0% { 
+    background-position: 0% 50%; 
+    transform: translate(0px, 0px) scale(1) rotate(0deg);
+  }
+  12.5% { 
+    background-position: 100% 25%; 
+    transform: translate(1.5px, -0.5px) scale(1.01) rotate(0.5deg);
+  }
+  25% { 
+    background-position: 200% 75%; 
+    transform: translate(0px, -2px) scale(1.03) rotate(0deg);
+  }
+  37.5% { 
+    background-position: 300% 0%; 
+    transform: translate(-1.5px, -2.5px) scale(1.04) rotate(-0.5deg);
+  }
+  50% { 
+    background-position: 400% 100%; 
+    transform: translate(0px, -3px) scale(1.06) rotate(0deg);
+  }
+  62.5% { 
+    background-position: 300% 25%; 
+    transform: translate(1px, -2px) scale(1.04) rotate(0.3deg);
+  }
+  75% { 
+    background-position: 200% 75%; 
+    transform: translate(-0.5px, -1.5px) scale(1.02) rotate(-0.3deg);
+  }
+  87.5% { 
+    background-position: 100% 50%; 
+    transform: translate(0.5px, -0.8px) scale(1.01) rotate(0.2deg);
+  }
+  100% { 
+    background-position: 0% 50%; 
+    transform: translate(0px, 0px) scale(1) rotate(0deg);
+  }
+}
+
+/* ===== ENHANCED HOVER EFFECTS ===== */
+
+.name-effect-master-gold:hover {
+  animation-duration: 1.5s;
+}
+
+.name-effect-master-rainbow:hover {
+  animation-duration: 2s;
+}
+
+.name-effect-master-divine:hover {
+  animation-duration: 3s;
+}
+
+.name-effect-master-mythical:hover {
+  animation-duration: 4s;
+}
+
+.name-effect-master-infinite:hover {
+  animation-duration: 5s;
+}
+
+/* ===== RESPONSIVE AND ACCESSIBILITY ===== */
+
+@media (max-width: 768px) {
+  /* Reduce animation intensity on mobile */
+  .name-effect-master-gold,
+  .name-effect-master-rainbow,
+  .name-effect-master-divine,
+  .name-effect-master-mythical,
+  .name-effect-master-infinite {
+    animation-duration: 4s;
+  }
+  
+  /* Reduce letter spacing on mobile */
+  .name-effect-master-gold,
+  .name-effect-master-rainbow,
+  .name-effect-master-divine {
+    letter-spacing: 0.5px;
+  }
+  
+  .name-effect-master-mythical {
+    letter-spacing: 0.8px;
+  }
+  
+  .name-effect-master-infinite {
+    letter-spacing: 1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all animations for users who prefer reduced motion */
+  .name-effect-master-gold,
+  .name-effect-master-rainbow,
+  .name-effect-master-divine,
+  .name-effect-master-mythical,
+  .name-effect-master-infinite {
+    animation: none !important;
+  }
+  
+  /* Provide static fallbacks with enhanced colors */
+  .name-effect-master-gold {
+    color: #f59e0b;
+  }
+  
+  .dark .name-effect-master-gold {
+    color: #fde047;
+  }
+  
+  .name-effect-master-rainbow {
+    background: linear-gradient(90deg, #dc2626, #ea580c, #ca8a04, #16a34a, #2563eb, #7c3aed);
+    background-size: 100% 100%;
+  }
+  
+  .dark .name-effect-master-rainbow {
+    background: linear-gradient(90deg, #f87171, #fb923c, #fbbf24, #4ade80, #60a5fa, #a78bfa);
+    background-size: 100% 100%;
+  }
+  
+  .name-effect-master-divine {
+    color: #4b5563;
+  }
+  
+  .dark .name-effect-master-divine {
+    color: #f3f4f6;
+  }
+  
+  .name-effect-master-mythical {
+    background: linear-gradient(45deg, #be185d, #7c2d12, #1e40af, #7c3aed, #0891b2, #a21caf);
+    background-size: 100% 100%;
+  }
+  
+  .dark .name-effect-master-mythical {
+    background: linear-gradient(45deg, #f472b6, #fb923c, #60a5fa, #a78bfa, #22d3ee, #e879f9);
+    background-size: 100% 100%;
+  }
+  
+  .name-effect-master-infinite {
+    background: linear-gradient(90deg, #6b7280, #0891b2, #7c3aed, #dc2626, #059669, #be185d);
+    background-size: 100% 100%;
+  }
+  
+  .dark .name-effect-master-infinite {
+    background: linear-gradient(90deg, #d1d5db, #22d3ee, #a78bfa, #f87171, #10b981, #f472b6);
+    background-size: 100% 100%;
+  }
+}

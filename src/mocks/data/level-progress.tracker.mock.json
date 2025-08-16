@@ -1,0 +1,162 @@
+{
+  "current_level": 27,
+  "current_tier": "Silver",
+  "user_avatars": ["chick", "dog", "rabbit", "cow", "bear", "elephant"],
+  "tiers": [
+    {
+      "tier_name": "Wood",
+      "tier_display_name": "Gỗ",
+      "tier_color": "#8B5A2B",
+      "min_level": 1,
+      "max_level": 12,
+      "levels": [
+        {
+          "level": 1,
+          "tier_name": "Wood",
+          "tier_color": "#8B5A2B",
+          "xp_required": 100,
+          "is_unlocked": true,
+          "is_current": false,
+          "avatar_reward": {
+            "level": 1,
+            "avatar": "chick",
+            "avatar_name": "Gà Con",
+            "avatar_path": "/avatar-animal-pack/chick.png",
+            "description": "Avatar khởi đầu"
+          },
+          "reward_claimed": true
+        },
+        {
+          "level": 5,
+          "tier_name": "Wood",
+          "tier_color": "#8B5A2B",
+          "xp_required": 200,
+          "is_unlocked": true,
+          "is_current": false,
+          "avatar_reward": {
+            "level": 5,
+            "avatar": "dog",
+            "avatar_name": "Chó",
+            "avatar_path": "/avatar-animal-pack/dog.png",
+            "description": "Mốc thưởng tier Wood"
+          },
+          "reward_claimed": true
+        },
+        {
+          "level": 10,
+          "tier_name": "Wood",
+          "tier_color": "#8B5A2B",
+          "xp_required": 350,
+          "is_unlocked": true,
+          "is_current": false,
+          "avatar_reward": {
+            "level": 10,
+            "avatar": "rabbit",
+            "avatar_name": "Thỏ",
+            "avatar_path": "/avatar-animal-pack/rabbit.png",
+            "description": "Mốc thưởng tier Wood"
+          },
+          "reward_claimed": true
+        }
+      ]
+    },
+    {
+      "tier_name": "Bronze",
+      "tier_display_name": "Đồng",
+      "tier_color": "#CD7F32",
+      "min_level": 13,
+      "max_level": 24,
+      "levels": [
+        {
+          "level": 15,
+          "tier_name": "Bronze",
+          "tier_color": "#CD7F32",
+          "xp_required": 600,
+          "is_unlocked": true,
+          "is_current": false,
+          "avatar_reward": {
+            "level": 15,
+            "avatar": "cow",
+            "avatar_name": "Bò",
+            "avatar_path": "/avatar-animal-pack/cow.png",
+            "description": "Mốc thưởng tier Bronze"
+          },
+          "reward_claimed": true
+        },
+        {
+          "level": 20,
+          "tier_name": "Bronze",
+          "tier_color": "#CD7F32",
+          "xp_required": 900,
+          "is_unlocked": true,
+          "is_current": false,
+          "avatar_reward": {
+            "level": 20,
+            "avatar": "bear",
+            "avatar_name": "Gấu",
+            "avatar_path": "/avatar-animal-pack/bear.png",
+            "description": "Mốc thưởng tier Bronze"
+          },
+          "reward_claimed": true
+        }
+      ]
+    },
+    {
+      "tier_name": "Silver",
+      "tier_display_name": "Bạc",
+      "tier_color": "#C0C0C0",
+      "min_level": 25,
+      "max_level": 36,
+      "levels": [
+        {
+          "level": 25,
+          "tier_name": "Silver",
+          "tier_color": "#C0C0C0",
+          "xp_required": 1400,
+          "is_unlocked": true,
+          "is_current": false,
+          "avatar_reward": {
+            "level": 25,
+            "avatar": "elephant",
+            "avatar_name": "Voi",
+            "avatar_path": "/avatar-animal-pack/elephant.png",
+            "description": "Mốc thưởng tier Silver"
+          },
+          "reward_claimed": true
+        },
+        {
+          "level": 30,
+          "tier_name": "Silver",
+          "tier_color": "#C0C0C0",
+          "xp_required": 2000,
+          "is_unlocked": true,
+          "is_current": true,
+          "avatar_reward": {
+            "level": 30,
+            "avatar": "panda",
+            "avatar_name": "Gấu Trúc",
+            "avatar_path": "/avatar-animal-pack/panda.png",
+            "description": "Mốc thưởng tier Silver"
+          },
+          "reward_claimed": false
+        },
+        {
+          "level": 35,
+          "tier_name": "Silver",
+          "tier_color": "#C0C0C0",
+          "xp_required": 2600,
+          "is_unlocked": false,
+          "is_current": false,
+          "avatar_reward": {
+            "level": 35,
+            "avatar": "monkey",
+            "avatar_name": "Khỉ",
+            "avatar_path": "/avatar-animal-pack/monkey.png",
+            "description": "Mốc thưởng tier Silver"
+          },
+          "reward_claimed": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "$schema": "./schemas/eggs-item-pools.schema.json",
+  "version": "1.0.0",
+  "updatedAt": "2025-08-08",
+  "pools": {
+    "basic-egg": {
+      "avatar": {
+        "items": [
+          { "id": "chick" },
+          { "id": "dog" },
+          { "id": "rabbit" },
+          { "id": "pig" },
+          { "id": "cow" },
+          { "id": "duck" },
+          { "id": "frog" },
+          { "id": "bear" }
+        ]
+      },
+      "emoji": {
+        "items": [
+          { "id": "slightly-smiling-face" },
+          { "id": "grinning-face" },
+          { "id": "winking-face" },
+          { "id": "sleepy-face" },
+          { "id": "worried-face" },
+          { "id": "relieved-face" },
+          { "id": "thinking-face" },
+          { "id": "confused-face" }
+        ]
+      }
+    },
+    "royal-egg": {
+      "avatar": {
+        "items": [
+          { "id": "monkey" },
+          { "id": "horse" },
+          { "id": "panda" },
+          { "id": "duck" },
+          { "id": "zebra" },
+          { "id": "buffalo" },
+          { "id": "chicken" },
+          { "id": "goat" }
+        ]
+      },
+      "emoji": {
+        "items": [
+          { "id": "cowboy-hat-face" },
+          { "id": "star-struck" },
+          { "id": "partying-face" },
+          { "id": "face-with-tongue" },
+          { "id": "zany-face" },
+          { "id": "smirking-face" },
+          { "id": "face-screaming-in-fear" },
+          { "id": "face-vomiting" }
+        ]
+      },
+      "frame": {
+        "items": [
+          { "id": "ocean-song-frame" },
+          { "id": "drumalong-festival-frame" }
+        ]
+      }
+    },
+    "legendary-egg": {
+      "avatar": {
+        "items": [
+          { "id": "crocodile" },
+          { "id": "gorilla" },
+          { "id": "rhino" },
+          { "id": "hippo" },
+          { "id": "giraffe" },
+          { "id": "parrot" },
+          { "id": "owl" },
+          { "id": "snake" }
+        ]
+      },
+      "emoji": {
+        "items": [
+          { "id": "melting-face" },
+          { "id": "face-in-clouds" },
+          { "id": "face-with-diagonal-mouth" },
+          { "id": "face-with-spiral-eyes" },
+          { "id": "dizzy-face" },
+          { "id": "disguised-face" },
+          { "id": "face-with-monocle" },
+          { "id": "shushing-face" }
+        ]
+      },
+      "frame": {
+        "items": [
+          { "id": "violet-starlight-frame" },
+          { "id": "cyber-glitch-frame" },
+          { "id": "nation-of-pyro-frame" }
+        ]
+      }
+    },
+    "dragon-egg": {
+      "avatar": {
+        "items": [
+          { "id": "penguin" },
+          { "id": "walrus" },
+          { "id": "whale" },
+          { "id": "narwhal" },
+          { "id": "moose" },
+          { "id": "sloth" }
+        ]
+      },
+      "emoji": {
+        "items": [
+          { "id": "robot" },
+          { "id": "exploding-head" },
+          { "id": "pile-of-poo" },
+          { "id": "face-with-symbols-on-mouth" },
+          { "id": "clown-face" }
+        ]
+      },
+      "frame": {
+        "items": [{ "id": "crimson-phoenix-frame" }]
+      }
+    }
+  }
+}

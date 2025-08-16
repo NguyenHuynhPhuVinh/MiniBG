@@ -1,0 +1,81 @@
+{
+  "$schema": "./schemas/shop-config.schema.json",
+  "version": "1.0.0",
+  "updatedAt": "2025-08-08",
+  "policy": {
+    "currency": "SynCoin",
+    "tierIndependent": true,
+    "sellEggs": false
+  },
+  "rotation": { "enabled": false, "periodDays": 7 },
+  "frames": [
+    {
+      "id": "ocean-song-frame",
+      "price": 150,
+      "asset": "avatar-frame-pack/ocean-song-frame.png",
+      "available": true
+    },
+    {
+      "id": "drumalong-festival-frame",
+      "price": 200,
+      "asset": "avatar-frame-pack/drumalong-festival-frame.png",
+      "available": true
+    },
+    {
+      "id": "cyber-glitch-frame",
+      "price": 250,
+      "asset": "avatar-frame-pack/cyber-glitch-frame.png",
+      "available": true
+    },
+    {
+      "id": "nation-of-pyro-frame",
+      "price": 280,
+      "asset": "avatar-frame-pack/nation-of-pyro-frame.png",
+      "available": true
+    },
+    {
+      "id": "violet-starlight-frame",
+      "price": 300,
+      "asset": "avatar-frame-pack/violet-starlight-frame.png",
+      "available": true
+    },
+    {
+      "id": "crimson-phoenix-frame",
+      "price": 300,
+      "asset": "avatar-frame-pack/crimson-phoenix-frame.png",
+      "available": true
+    }
+  ],
+  "emojis": [
+    {
+      "id": "beaming-face",
+      "price": 10,
+      "asset": "vector-emojis-pack/beaming-face.png"
+    },
+    {
+      "id": "confused-face",
+      "price": 10,
+      "asset": "vector-emojis-pack/confused-face.png"
+    },
+    {
+      "id": "exploding-head",
+      "price": 60,
+      "asset": "vector-emojis-pack/exploding-head.png"
+    },
+    { "id": "robot", "price": 60, "asset": "vector-emojis-pack/robot.png" }
+  ],
+  "avatars": [
+    {
+      "id": "narwhal",
+      "price": 300,
+      "asset": "avatar-animal-pack/narwhal.png",
+      "available": true
+    },
+    {
+      "id": "sloth",
+      "price": 300,
+      "asset": "avatar-animal-pack/sloth.png",
+      "available": true
+    }
+  ]
+}
