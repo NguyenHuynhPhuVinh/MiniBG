@@ -121,11 +121,11 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     // Load common tilesets (dùng chung cho tất cả platformer)
     this.load.image(
       "spritesheet-tiles-default",
-      "/kenney_new-platformer-pack-1.0/Spritesheets/spritesheet-tiles-default.png"
+      "/kenney_new-platformer-pack-1.0/Spritesheets/spritesheet-tiles-default_extruded.png"
     );
     this.load.image(
       "spritesheet-backgrounds-default",
-      "/kenney_new-platformer-pack-1.0/Spritesheets/spritesheet-backgrounds-default.png"
+      "/kenney_new-platformer-pack-1.0/Spritesheets/spritesheet-backgrounds-default_extruded.png"
     );
 
     // Load character spritesheet (dùng chung)

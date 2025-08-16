@@ -62,10 +62,13 @@
         },
         "maps/level-2-desert.tmx#spritesheet-backgrounds-default": {
             "dynamicWrapping": false,
-            "scaleInDock": 1
+            "scaleInDock": 1,
+            "scaleInEditor": 1
         },
         "maps/level-2-desert.tmx#spritesheet-tiles-default": {
-            "scaleInDock": 1
+            "dynamicWrapping": false,
+            "scaleInDock": 1,
+            "scaleInEditor": 1
         },
         "maps/untitled.tmx": {
             "scale": 0.5,
