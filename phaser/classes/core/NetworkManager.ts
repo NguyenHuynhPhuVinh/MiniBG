@@ -13,7 +13,7 @@ export class NetworkManager {
     console.log(`🔧 NetworkManager constructor called`);
     const endpoint =
       process.env.NODE_ENV === "production"
-        ? "wss://your-prod-server.com"
+        ? "wss://game-server-vjqb.onrender.com"
         : "ws://localhost:2567";
     this.client = new Client(endpoint);
     console.log(`🔧 NetworkManager client created for endpoint: ${endpoint}`);
