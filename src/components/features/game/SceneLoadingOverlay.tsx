@@ -2,7 +2,15 @@
 
 import React, { useState, useEffect } from "react";
 import { EventBus } from "../../../../phaser/EventBus";
-import { Trees, Mountain, Gamepad2, Lightbulb, Play, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Trees,
+  Mountain,
+  Gamepad2,
+  Lightbulb,
+  Play,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 /**
  * 🎮 SCENE LOADING OVERLAY - Full screen overlay hiển thị khi scene đang preload
@@ -18,6 +26,7 @@ import { Trees, Mountain, Gamepad2, Lightbulb, Play, ChevronLeft, ChevronRight }
 interface SceneLoadingOverlayProps {
   isVisible?: boolean;
   className?: string;
+  sceneName?: string; // <-- Sửa thành optional để tránh lỗi khi không truyền
 }
 
 interface LoadingState {
@@ -55,17 +64,20 @@ const SCENE_INFO = {
     steps: [
       {
         title: "Di chuyển",
-        description: "Sử dụng WASD hoặc phím mũi tên để di chuyển nhân vật qua các địa hình khác nhau",
+        description:
+          "Sử dụng WASD hoặc phím mũi tên để di chuyển nhân vật qua các địa hình khác nhau",
         icon: Gamepad2,
       },
       {
         title: "Nhảy",
-        description: "Nhấn Space để nhảy qua các chướng ngại vật và lên các nền tảng cao",
+        description:
+          "Nhấn Space để nhảy qua các chướng ngại vật và lên các nền tảng cao",
         icon: Mountain,
       },
       {
         title: "Thu thập",
-        description: "Thu thập xu vàng và các vật phẩm để tăng điểm số trong vòng chơi",
+        description:
+          "Thu thập xu vàng và các vật phẩm để tăng điểm số trong vòng chơi",
         icon: Trees,
       },
     ],
@@ -85,17 +97,20 @@ const SCENE_INFO = {
     steps: [
       {
         title: "Di chuyển",
-        description: "Sử dụng WASD hoặc phím mũi tên để di chuyển nhân vật qua các địa hình khác nhau",
+        description:
+          "Sử dụng WASD hoặc phím mũi tên để di chuyển nhân vật qua các địa hình khác nhau",
         icon: Gamepad2,
       },
       {
         title: "Nhảy",
-        description: "Nhấn Space để nhảy qua các chướng ngại vật và lên các nền tảng cao",
+        description:
+          "Nhấn Space để nhảy qua các chướng ngại vật và lên các nền tảng cao",
         icon: Mountain,
       },
       {
         title: "Thu thập",
-        description: "Thu thập xu vàng và các vật phẩm để tăng điểm số trong vòng chơi",
+        description:
+          "Thu thập xu vàng và các vật phẩm để tăng điểm số trong vòng chơi",
         icon: Trees,
       },
     ],
@@ -116,17 +131,20 @@ const SCENE_INFO = {
     steps: [
       {
         title: "Thăm dò",
-        description: "Khám phá sa mạc và tìm kiếm các con đường an toàn qua địa hình hiểm trở",
+        description:
+          "Khám phá sa mạc và tìm kiếm các con đường an toàn qua địa hình hiểm trở",
         icon: Mountain,
       },
       {
         title: "Tránh nguy hiểm",
-        description: "Cẩn thận với các chướng ngại vật và bẫy ẩn giấu trong sa mạc",
+        description:
+          "Cẩn thận với các chướng ngại vật và bẫy ẩn giấu trong sa mạc",
         icon: Lightbulb,
       },
       {
         title: "Thu thập kho báu",
-        description: "Tìm và thu thập các kho báu quý giá ẩn giấu trong cát sa mạc",
+        description:
+          "Tìm và thu thập các kho báu quý giá ẩn giấu trong cát sa mạc",
         icon: Trees,
       },
     ],
@@ -167,6 +185,7 @@ const SCENE_INFO = {
 export const SceneLoadingOverlay: React.FC<SceneLoadingOverlayProps> = ({
   isVisible = false,
   className = "",
+  sceneName = "", // <-- Thêm giá trị mặc định
 }) => {
   const [loadingState, setLoadingState] = useState<LoadingState>({
     isLoading: false,
@@ -181,84 +200,118 @@ export const SceneLoadingOverlay: React.FC<SceneLoadingOverlayProps> = ({
   });
 
   useEffect(() => {
-    // Lắng nghe scene loading start
-    const handleSceneLoadingStart = (data: { sceneName: string }) => {
-      console.log("🎬 SceneLoadingOverlay: Received scene-loading-start", data);
+    // Chỉ đăng ký listener KHI component được hiển thị
+    if (isVisible) {
+      console.log("🟢 SceneLoadingOverlay is visible, attaching listeners...");
 
-      let sceneInfo = SCENE_INFO[data.sceneName as keyof typeof SCENE_INFO];
+      // Logic khởi tạo state khi component được hiển thị VÀ có sceneName
+      if (sceneName) {
+        const sceneInfo =
+          SCENE_INFO[sceneName as keyof typeof SCENE_INFO] ||
+          SCENE_INFO.default;
 
-      // Nếu không tìm thấy scene info, sử dụng default
-      if (!sceneInfo) {
-        console.log(`⚠️ Scene ${data.sceneName} not found in SCENE_INFO, using default`);
-        sceneInfo = SCENE_INFO.default;
+        setLoadingState({
+          isLoading: true,
+          sceneName: sceneName,
+          sceneDisplayName: sceneInfo.displayName,
+          progress: 0,
+          loadingText: `Đang tải ${sceneInfo.displayName}...`,
+          tips: sceneInfo.tips,
+          currentTipIndex: 0,
+          isComplete: false,
+          currentStepIndex: 0,
+        });
       }
 
-      setLoadingState({
-        isLoading: true,
-        sceneName: data.sceneName,
-        sceneDisplayName: sceneInfo.displayName,
-        progress: 0,
-        loadingText: `Đang tải ${sceneInfo.displayName}...`,
-        tips: sceneInfo.tips,
-        currentTipIndex: 0,
-        isComplete: false,
-        currentStepIndex: 0,
-      });
+      // Định nghĩa các handler functions
+      const handleSceneLoadingStart = (data: { sceneName: string }) => {
+        console.log(
+          "🎬 SceneLoadingOverlay: Received scene-loading-start for:",
+          data.sceneName
+        );
+        // Không cần làm gì vì sceneName đã được set từ props
+      };
 
-      console.log("✅ SceneLoadingOverlay: Loading state set", {
-        sceneName: data.sceneName,
-        displayName: sceneInfo.displayName
-      });
-    };
+      const handleLoadingProgress = (data: { progress: number }) => {
+        setLoadingState((prev) => ({
+          ...prev,
+          progress: Math.round(data.progress * 100),
+          loadingText:
+            data.progress < 1
+              ? `Đang tải ${prev.sceneDisplayName}... ${Math.round(
+                  data.progress * 100
+                )}%`
+              : `${prev.sceneDisplayName} đã sẵn sàng!`,
+        }));
+      };
 
-    // Lắng nghe loading progress
-    const handleLoadingProgress = (data: {
-      progress: number;
-      sceneName?: string;
-    }) => {
-      console.log("📊 SceneLoadingOverlay: Loading progress", data);
-      setLoadingState((prev) => ({
-        ...prev,
-        progress: Math.round(data.progress * 100),
-        loadingText:
-          data.progress < 1
-            ? `Đang tải ${prev.sceneDisplayName}... ${Math.round(
-                data.progress * 100
-              )}%`
-            : `${prev.sceneDisplayName} đã sẵn sàng!`,
+      // Hàm xử lý khi loading xong (dùng chung cho cả hai event)
+      const handleLoadingIsFinished = () => {
+        setLoadingState((prev) => {
+          // Nếu đã complete rồi thì không làm gì nữa
+          if (prev.isComplete) {
+            console.log(
+              "✅ SceneLoadingOverlay: Already completed, ignoring duplicate signal"
+            );
+            return prev;
+          }
+
+          console.log(
+            "✅ SceneLoadingOverlay: Received completion signal. Showing start button."
+          );
+          return {
+            ...prev,
+            progress: 100,
+            loadingText: `${prev.sceneDisplayName} đã sẵn sàng!`,
+            isComplete: true,
+          };
+        });
+      };
+
+      // Đăng ký event listeners
+      EventBus.on("scene-loading-start", handleSceneLoadingStart);
+      EventBus.on("scene-loading-progress", handleLoadingProgress);
+
+      // Listener cũ, vẫn giữ lại phòng trường hợp tải chậm
+      EventBus.on("scene-loading-complete", handleLoadingIsFinished);
+
+      // THÊM MỚI: Listener "dự phòng" đáng tin cậy
+      // Sự kiện này luôn được phát ra SAU KHI preload hoàn tất.
+      EventBus.on("current-scene-ready", handleLoadingIsFinished);
+
+      // FALLBACK CUỐI CÙNG: Nếu sau 100ms mà vẫn chưa complete thì check lại
+      const fallbackTimeout = setTimeout(() => {
+        console.log(
+          "⏰ SceneLoadingOverlay: Fallback timeout triggered, forcing completion"
+        );
+        handleLoadingIsFinished();
+      }, 100);
+
+      // Hàm dọn dẹp này sẽ được gọi khi isVisible chuyển thành false
+      return () => {
+        console.log("🔴 SceneLoadingOverlay is hidden, removing listeners...");
+        clearTimeout(fallbackTimeout);
+        EventBus.removeListener("scene-loading-start", handleSceneLoadingStart);
+        EventBus.removeListener(
+          "scene-loading-progress",
+          handleLoadingProgress
+        );
+        EventBus.removeListener(
+          "scene-loading-complete",
+          handleLoadingIsFinished
+        );
+        // THÊM MỚI: Dọn dẹp listener dự phòng
+        EventBus.removeListener("current-scene-ready", handleLoadingIsFinished);
+      };
+    } else {
+      // Reset state khi component bị ẩn đi
+      setLoadingState((prevState) => ({
+        ...prevState,
+        isLoading: false,
+        sceneName: "",
       }));
-    };
-
-    // Lắng nghe scene loading complete
-    const handleSceneLoadingComplete = () => {
-      console.log("✅ SceneLoadingOverlay: Scene loading complete");
-      setLoadingState((prev) => ({
-        ...prev,
-        progress: 100,
-        loadingText: `${prev.sceneDisplayName} đã sẵn sàng!`,
-        isComplete: true,
-      }));
-
-      console.log("🔄 SceneLoadingOverlay: Waiting for user to start game");
-    };
-
-    // Đăng ký event listeners
-    EventBus.on("scene-loading-start", handleSceneLoadingStart);
-    EventBus.on("scene-loading-progress", handleLoadingProgress);
-    EventBus.on("scene-loading-complete", handleSceneLoadingComplete);
-
-    // Cleanup khi component unmount
-    return () => {
-      EventBus.removeListener("scene-loading-start", handleSceneLoadingStart);
-      EventBus.removeListener("scene-loading-progress", handleLoadingProgress);
-      EventBus.removeListener(
-        "scene-loading-complete",
-        handleSceneLoadingComplete
-      );
-    };
-  }, []);
-
-
+    }
+  }, [isVisible, sceneName]); // <--- THAY ĐỔI QUAN TRỌNG NHẤT
 
   // Auto rotate tips
   useEffect(() => {
@@ -279,15 +332,18 @@ export const SceneLoadingOverlay: React.FC<SceneLoadingOverlayProps> = ({
     isVisible,
     loadingState: loadingState.isLoading,
     sceneName: loadingState.sceneName,
-    shouldShow: isVisible && loadingState.isLoading
+    shouldShow: isVisible,
   });
 
-  if (!isVisible || !loadingState.isLoading) {
+  // Sửa lại điều kiện render
+  if (!isVisible || !sceneName) {
     return null;
   }
 
+  // Bây giờ `loadingState.sceneName` sẽ luôn đúng vì nó được set từ prop `sceneName`
   const sceneInfo =
-    SCENE_INFO[loadingState.sceneName as keyof typeof SCENE_INFO] || SCENE_INFO.default;
+    SCENE_INFO[loadingState.sceneName as keyof typeof SCENE_INFO] ||
+    SCENE_INFO.default;
 
   const IconComponent = sceneInfo.icon;
   const currentStep = sceneInfo.steps[loadingState.currentStepIndex];
@@ -311,7 +367,10 @@ export const SceneLoadingOverlay: React.FC<SceneLoadingOverlayProps> = ({
   const handleNextStep = () => {
     setLoadingState((prev) => ({
       ...prev,
-      currentStepIndex: Math.min(sceneInfo.steps.length - 1, prev.currentStepIndex + 1),
+      currentStepIndex: Math.min(
+        sceneInfo.steps.length - 1,
+        prev.currentStepIndex + 1
+      ),
     }));
   };
 
@@ -376,7 +435,9 @@ export const SceneLoadingOverlay: React.FC<SceneLoadingOverlayProps> = ({
 
               <button
                 onClick={handleNextStep}
-                disabled={loadingState.currentStepIndex === sceneInfo.steps.length - 1}
+                disabled={
+                  loadingState.currentStepIndex === sceneInfo.steps.length - 1
+                }
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="text-sm">Tiếp</span>
@@ -414,7 +475,9 @@ export const SceneLoadingOverlay: React.FC<SceneLoadingOverlayProps> = ({
         <div className="bg-background/80 rounded-lg px-4 py-2 border border-border max-w-xs">
           <div className="flex items-center gap-2 mb-1">
             <Lightbulb size={14} className="text-primary" />
-            <span className="text-xs font-medium text-foreground">Thông tin hữu ích</span>
+            <span className="text-xs font-medium text-foreground">
+              Thông tin hữu ích
+            </span>
           </div>
           <div className="text-xs text-muted-foreground transition-opacity duration-300">
             {loadingState.tips[loadingState.currentTipIndex]}

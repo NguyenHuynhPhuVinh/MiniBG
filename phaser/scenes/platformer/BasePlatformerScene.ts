@@ -7,12 +7,21 @@ import {
   TimerManager,
   MinigameCore,
   CHARACTERS,
+  NetworkManager,
+  AnimationManager,
+  AnimationState,
 } from "../../classes";
 import { CAMERA_CONFIG, TIMER_CONFIG } from "../../config/constants";
 import { PlatformerLogicCore } from "./PlatformerLogicCore";
 import { PlatformerWorldBuilder } from "./PlatformerWorldBuilder";
 import { PlatformerPlayerHandler } from "./PlatformerPlayerHandler";
+import { PlatformerNetworkHandler } from "../../classes/platformer/PlatformerNetworkHandler";
 import { IPlatformerRules } from "./rules/IPlatformerRules";
+import { Room, getStateCallbacks } from "colyseus.js";
+import {
+  GameRoomState,
+  Player as PlayerStateSchema,
+} from "../../classes/core/types/GameRoomState";
 
 /**
  * 🎮 BASE PLATFORMER SCENE - Cấp 2: Lớp cơ sở cho dạng chơi Platformer
@@ -60,6 +69,16 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   protected inputManager!: InputManager; // Quản lý input keyboard
   protected cameraManager!: CameraManager; // Quản lý camera effects
   protected timerManager!: TimerManager; // Quản lý thời gian game
+
+  // === MULTIPLAYER ===
+  protected networkManager!: NetworkManager; // Quản lý kết nối mạng
+  protected room?: Room<GameRoomState>; // Phòng game Colyseus
+
+  // Thay thế các thuộc tính multiplayer cũ bằng một chuyên gia duy nhất
+  protected networkHandler!: PlatformerNetworkHandler;
+
+  // THÊM MỚI: Một thuộc tính để lưu trữ hàm xử lý sự kiện
+  private networkConnectedHandler!: (room: Room<GameRoomState>) => void;
 
   // === STRATEGY PATTERN COMPONENTS ===
   protected rules!: IPlatformerRules; // Bộ quy tắc do subclass chọn
@@ -154,21 +173,24 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   /**
    * 🎬 INITIALIZE SCENE - Implementation của abstract method từ BaseGameScene
    *
-   * LUỒNG MỚI với STRATEGY PATTERN:
+   * LUỒNG MỚI với STRATEGY PATTERN và NETWORK HANDLER:
    * 1. Tạo bộ quy tắc do scene con quyết định (Strategy Pattern)
    * 2. Khởi tạo các chuyên gia Helper
    * 3. Khởi tạo bộ quy tắc với các tham chiếu cần thiết
    * 4. Dùng WorldBuilder để xây dựng thế giới
    * 5. Setup các managers (Input, Camera, Timer)
-   * 6. LogicCore nhận vào bộ quy tắc thay vì scene
-   * 7. Dùng PlayerHandler để tạo người chơi
-   * 8. Dùng WorldBuilder để đặt interactive objects
-   * 9. Reset MinigameCore
+   * 6. Khởi tạo Network Handler
+   * 7. LogicCore nhận vào bộ quy tắc thay vì scene
+   * 8. Reset MinigameCore
    */
   protected initializeScene(): void {
     console.log(
-      `� ${this.SCENE_NAME}: Orchestrating scene setup with Strategy Pattern...`
+      `🚀 ${this.SCENE_NAME}: Orchestrating scene setup with Strategy Pattern...`
     );
+
+    // 0. QUAN TRỌNG: Reset player để tránh conflict giữa các round
+    this.player = null as any;
+    console.log(`🔄 ${this.SCENE_NAME}: Player reset for new round`);
 
     // 1. Tạo bộ quy tắc do scene con quyết định (Strategy Pattern)
     this.rules = this.createRules();
@@ -196,28 +218,76 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     // 6. Setup các managers (logic này vẫn giữ lại vì khá đơn giản)
     this.setupPlatformerManagers();
 
-    // 7. Dùng chuyên gia để tạo người chơi
-    const spawnPoint = this.worldBuilder.findPlayerSpawnPoint();
-    this.player = this.playerHandler.spawnPlayer(
-      spawnPoint,
-      this.platformsLayer,
-      this.inputManager,
-      this.cameraManager,
-      this.logicCore
+    // 7. Khởi tạo chuyên gia mạng
+    this.networkHandler = new PlatformerNetworkHandler(
+      this,
+      this.platformsLayer
     );
 
-    // 8. Dùng chuyên gia để đặt các đối tượng tương tác
-    this.worldBuilder.setupInteractiveObjects(
-      this.player.getSprite(),
-      this.logicCore
-    );
+    // 8. LẤY INSTANCE NetworkManager, KHÔNG KẾT NỐI
+    this.networkManager = NetworkManager.getInstance();
 
-    // 9. Reset game core
+    // XÓA DÒNG NÀY: this.networkManager.joinGameRoom();
+    // RoundManager sẽ xử lý việc join room khi bắt đầu vòng.
+
+    // 9. THAY ĐỔI CÁCH ĐĂNG KÝ LISTENER
+    // Xóa listener cũ để đảm bảo không bị trùng lặp từ scene trước
+    if (this.networkConnectedHandler) {
+      EventBus.off("network-connected", this.networkConnectedHandler);
+    }
+
+    // Định nghĩa hàm xử lý và gán vào thuộc tính vừa tạo
+    this.networkConnectedHandler = (room: Room<GameRoomState>) => {
+      // Kiểm tra scene đã được khởi tạo hoàn toàn chưa
+      if (!this.networkHandler || !this.playerHandler || !this.platformsLayer) {
+        console.log(
+          `🌐 ${this.scene.key} received network-connected but scene not fully initialized. Ignoring.`
+        );
+        return;
+      }
+
+      // Kiểm tra scene có đang visible không (bỏ check isActive vì nó có thể tạm thời false)
+      if (!this.scene.isVisible()) {
+        console.log(
+          `🌐 ${
+            this.scene.key
+          } received network-connected but scene not visible. Visible: ${this.scene.isVisible()}. Ignoring.`
+        );
+        return;
+      }
+
+      console.log(
+        `🌐 network-connected event received in scene: ${this.scene.key}`
+      );
+      console.log(`🌐 Room details:`, room.name, room.sessionId);
+      this.room = room;
+      this.networkHandler.initialize(room);
+    };
+
+    // Đăng ký listener bằng thuộc tính đó
+    EventBus.on("network-connected", this.networkConnectedHandler);
+
+    // 10. Reset game core
     this.minigameCore.resetForNewRound();
 
+    // THÊM MỚI: Chủ động emit trạng thái điểm số ban đầu
+    // Sau khi resetForNewRound, điểm số được giữ lại từ các vòng trước.
+    // Chúng ta cần thông báo cho UI biết giá trị này.
+    EventBus.emit("minigame-score-updated", {
+      oldScore: this.minigameCore.getCurrentScore(),
+      newScore: this.minigameCore.getCurrentScore(),
+      change: 0,
+    });
+
     console.log(
-      `✅ ${this.SCENE_NAME} initialization completed with Strategy Pattern`
+      `✅ ${this.SCENE_NAME} initialization completed. Waiting for RoundManager to join room.`
     );
+
+    // Emit event để NetworkManager biết Scene đã sẵn sàng
+    EventBus.emit("scene-ready-for-network", this.SCENE_NAME);
+
+    // Thông báo cho React component rằng scene đã sẵn sàng (failsafe cho loading overlay)
+    this.notifySceneReady();
   }
 
   /**
@@ -274,21 +344,77 @@ export abstract class BasePlatformerScene extends BaseGameScene {
         });
       },
     });
+
+    // THÊM MỚI: Chủ động emit trạng thái timer ban đầu
+    // Ngay sau khi timer bắt đầu, hãy gửi trạng thái đầu tiên cho UI.
+    EventBus.emit("game-timer-update", {
+      timeLeft: gameTimeLimit,
+      formatted: this.timerManager.formatTime(gameTimeLimit),
+      isWarning: false,
+    });
+  }
+
+  // === MULTIPLAYER METHODS ===
+
+  /**
+   * 🎯 CREATE MAIN PLAYER - Được gọi bởi NetworkHandler để tạo người chơi chính
+   * @param playerState Trạng thái ban đầu từ server
+   */
+  public createMainPlayer(playerState: PlayerStateSchema): void {
+    console.log(`🎯 createMainPlayer called with state:`, {
+      x: playerState.x,
+      y: playerState.y,
+    });
+
+    console.log(
+      `🎮 Creating main player at position: ${playerState.x}, ${playerState.y}`
+    );
+
+    // 🔧 Null checks trước khi tạo player
+    if (!this.playerHandler) {
+      console.error(`❌ PlayerHandler is null in ${this.scene.key}`);
+      return;
+    }
+    if (!this.platformsLayer) {
+      console.error(`❌ PlatformsLayer is null in ${this.scene.key}`);
+      return;
+    }
+    if (!this.inputManager) {
+      console.error(`❌ InputManager is null in ${this.scene.key}`);
+      return;
+    }
+
+    console.log(`🔧 Creating player with playerHandler:`, !!this.playerHandler);
+
+    this.player = this.playerHandler.spawnPlayer(
+      { x: playerState.x, y: playerState.y },
+      this.platformsLayer,
+      this.inputManager,
+      this.cameraManager,
+      this.logicCore,
+      this.networkManager
+    );
+
+    // Setup interactive objects CHỈ SAU KHI player chính được tạo
+    this.worldBuilder.setupInteractiveObjects(
+      this.player.getSprite(),
+      this.logicCore
+    );
+
+    console.log(
+      `✅ Main player created successfully at position: ${playerState.x}, ${playerState.y}`
+    );
   }
 
   // === UPDATE LOOP ===
 
   /**
-   * 🔄 UPDATE - Game loop chung cho tất cả platformer
+   * � UPDATE - Game loop cực kỳ gọn gàng với Network Handler
    */
   update(): void {
-    if (!this.player) return;
-
-    // Update player - xử lý input, movement, animation
-    this.player.update();
-
-    // Update logic core nếu cần
-    // this.logicCore.update(); // Implement nếu cần
+    // Chỉ cần ra lệnh cho các thành phần tự cập nhật
+    this.player?.update();
+    this.networkHandler?.update();
   }
 
   // === PUBLIC API - Cho React components ===
@@ -298,13 +424,6 @@ export abstract class BasePlatformerScene extends BaseGameScene {
    */
   public getPlayerPosition() {
     return this.player ? this.player.getPosition() : null;
-  }
-
-  /**
-   * 📊 GET PLAYER STATE - API cho React
-   */
-  public getPlayerState() {
-    return this.player ? this.player.getState() : null;
   }
 
   /**
@@ -364,7 +483,28 @@ export abstract class BasePlatformerScene extends BaseGameScene {
    * 🗑️ CLEANUP ON SHUTDOWN - Override từ BaseGameScene
    */
   protected cleanupOnShutdown(): void {
+    console.log(`🗑️ ${this.SCENE_NAME}: Starting cleanup...`);
+
     super.cleanupOnShutdown();
+
+    // GỠ BỎ LISTENER KHI SCENE BỊ HỦY
+    // Đây là bước quan trọng nhất để sửa lỗi
+    if (this.networkConnectedHandler) {
+      EventBus.off("network-connected", this.networkConnectedHandler);
+      console.log(`🗑️ ${this.SCENE_NAME}: Removed network-connected listener.`);
+      this.networkConnectedHandler = null as any;
+    }
+
+    // Ra lệnh cho các chuyên gia tự dọn dẹp
+    this.networkHandler?.cleanup();
+    this.networkManager?.leaveCurrentRoom();
+
+    // QUAN TRỌNG: Cleanup player trước khi chuyển scene
+    if (this.player) {
+      console.log(`🗑️ ${this.SCENE_NAME}: Cleaning up player`);
+      this.player.destroy();
+      this.player = null as any;
+    }
 
     // Cleanup bộ quy tắc TRƯỚC khi cleanup các component khác
     this.rules?.cleanup();
@@ -373,13 +513,14 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     this.timerManager?.destroy();
     this.logicCore?.cleanup();
 
+    // Cleanup network handler để tránh duplicate events
+    this.networkHandler?.cleanup();
+
     // Cleanup các chuyên gia helpers
     this.worldBuilder?.cleanup();
     this.playerHandler?.cleanup();
 
-    console.log(
-      `🗑️ ${this.SCENE_NAME} platformer cleanup completed with Strategy Pattern`
-    );
+    console.log(`🗑️ ${this.SCENE_NAME} platformer cleanup completed.`);
   }
 
   /**

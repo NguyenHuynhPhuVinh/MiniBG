@@ -14,3 +14,4 @@ export * from "./MinigameCore";
 export * from "./RoundManager";
 export * from "./SceneManager";
 export * from "./TimerManager";
+export * from "./NetworkManager";

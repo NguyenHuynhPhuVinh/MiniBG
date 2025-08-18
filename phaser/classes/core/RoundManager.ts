@@ -1,6 +1,7 @@
 import { EventBus } from "../../EventBus";
 import { SceneManager } from "./SceneManager";
 import { SeedGenerator, SeededSceneSelector } from "../../utils/SeededRandom";
+import { NetworkManager } from "./NetworkManager"; // Import NetworkManager
 
 /**
  * 🎯 ROUND MANAGER - Quản lý 4 vòng quiz với scene selection
@@ -40,8 +41,10 @@ export class RoundManager {
   private sceneSelector: SeededSceneSelector | null = null;
   private quizSeed: string = "";
   private isProcessingRound: boolean = false; // Guard để tránh duplicate round completion
+  private networkManager: NetworkManager; // Thêm thuộc tính networkManager
 
   private constructor() {
+    this.networkManager = NetworkManager.getInstance(); // Khởi tạo singleton
     // Event listeners sẽ được setup trong initialize()
   }
 
@@ -67,6 +70,18 @@ export class RoundManager {
    * @param data - Quiz data chứa questions, duration, quizId, userId
    */
   public initialize(data: QuizData): void {
+    console.log(`🚀 RoundManager.initialize called for quiz ${data.quizId}`);
+
+    // Guard: Tránh duplicate initialization cho cùng 1 quiz
+    if (this.isInitialized && this.quizData?.quizId === data.quizId) {
+      console.log(
+        `⚠️ RoundManager already initialized for quiz ${data.quizId}, skipping...`
+      );
+      return;
+    }
+
+    console.log(`🔄 RoundManager initializing for quiz ${data.quizId}...`);
+
     this.quizData = data;
     this.currentRound = 0;
     this.totalScore = 0;
@@ -166,10 +181,9 @@ export class RoundManager {
 
   /**
    * 🎮 START ROUND - Bắt đầu một vòng cụ thể
-   *
-   * @param roundIndex - Index của round (0-3), nếu >= 4 thì hiển thị final results
    */
-  private startRound(roundIndex: number): void {
+  private async startRound(roundIndex: number): Promise<void> {
+    // Thêm async
     if (roundIndex >= this.rounds.length) {
       this.showFinalResults();
       return;
@@ -187,10 +201,17 @@ export class RoundManager {
       );
     }
 
-    // Emit event cho MinigameOverlay để cập nhật round number
+    // ===== LOGIC MỚI: THAM GIA PHÒNG CỦA VÒNG MỚI =====
+    if (this.quizData) {
+      await this.networkManager.joinRoundRoom(
+        this.quizData.quizId,
+        round.roundNumber
+      );
+    }
+    // =================================================
+
     EventBus.emit("round-started", round.roundNumber);
 
-    // Start scene với delay nhỏ để đảm bảo context đúng
     if (this.scene) {
       console.log(`🎮 Starting scene: ${round.sceneKey}`);
 
@@ -347,12 +368,16 @@ export class RoundManager {
     // Lắng nghe manual quiz trigger từ MinigameCore
     EventBus.on(
       "manual-quiz-trigger",
-      (data: { finalScore: number; reason: string }) => {
+      async (data: { finalScore: number; reason: string }) => {
+        // Thêm async
         console.log(
           `🧠 RoundManager: Manual quiz trigger received (score: ${data.finalScore}, reason: ${data.reason})`
         );
 
-        // Trigger quiz với round data hiện tại
+        // ===== LOGIC MỚI: RỜI KHỎI PHÒNG HIỆN TẠI KHI QUIZ BẮT ĐẦU =====
+        await this.networkManager.leaveCurrentRoom();
+        // ==============================================================
+
         const round = this.rounds[this.currentRound];
         if (round && this.scene) {
           // Lấy scene hiện tại đang chạy

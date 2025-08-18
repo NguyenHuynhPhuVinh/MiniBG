@@ -1,12 +1,28 @@
 // frontend/src/components/features/game/TestGameWrapper.tsx
 "use client";
 
-import React, { useLayoutEffect, useRef, useEffect, useState } from "react";
+import React, { useLayoutEffect, useEffect, useState } from "react"; // Phaser cần useLayoutEffect
 import StartGame from "../../../../phaser/GameEngine";
 import { EventBus } from "../../../../phaser/EventBus";
 import { MinigameOverlay } from "./MinigameOverlay";
 import { SceneLoadingOverlay } from "./SceneLoadingOverlay";
-import { MinigameCore } from "../../../../phaser/classes";
+import { MinigameCore, NetworkManager } from "../../../../phaser/classes";
+
+// GLOBAL LOCK ĐỂ CHỐNG STRICT MODE - KHÔNG RESET KHI COMPONENT UNMOUNT
+let globalGameInitialized = false;
+let globalGameInstance: Phaser.Game | null = null;
+
+// CLEANUP KHI THỰC SỰ RỜI TRANG
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => {
+    console.log("[GLOBAL CLEANUP] Page unloading, cleaning up game...");
+    globalGameInitialized = false;
+    if (globalGameInstance) {
+      globalGameInstance.destroy(true);
+      globalGameInstance = null;
+    }
+  });
+}
 
 interface TestGameWrapperProps {
   sceneToLaunch: string;
@@ -17,87 +33,110 @@ const TestGameWrapper: React.FC<TestGameWrapperProps> = ({
   sceneToLaunch,
   onGameEnd,
 }) => {
-  const game = useRef<Phaser.Game | null>(null);
-  const [showSceneLoading, setShowSceneLoading] = useState(true);
+  // KHÔNG CẦN useRef NỮA - DÙNG GLOBAL VARIABLES
+  const [loadingState, setLoadingState] = useState({
+    isVisible: true,
+    sceneName: sceneToLaunch,
+  });
 
-  // Khởi tạo và hủy Phaser game
   useLayoutEffect(() => {
-    // Luôn reset điểm khi bắt đầu một màn chơi test mới
-    MinigameCore.getInstance().resetCompletely();
-    game.current = StartGame("test-game-container");
+    // === GLOBAL LOCK CHỐNG STRICT MODE ===
+    // Nếu đã khởi tạo rồi, không làm gì cả.
+    if (globalGameInitialized) {
+      console.log("[STRICT MODE] Game already initialized, skipping...");
+      return;
+    }
+    // Đánh dấu là đã bắt đầu khởi tạo.
+    globalGameInitialized = true;
+    console.log("[INIT] Starting game initialization...");
+    // ===================================
 
-    const handleSceneReady = (sceneInstance: Phaser.Scene) => {
-      // Khi PreloadScene sẵn sàng, thay vì đợi dữ liệu quiz,
-      // chúng ta sẽ khởi chạy trực tiếp scene được yêu cầu.
-      if (sceneInstance.scene.key === "PreloadScene") {
-        console.log(`Directly launching scene: ${sceneToLaunch}`);
-        // Cung cấp một đối tượng `roundData` giả để scene không bị lỗi
-        sceneInstance.scene.start(sceneToLaunch, {
-          roundData: {
-            roundNumber: 1,
-            gameTimeLimit: -1, // Thời gian dài để test thoải mái
-            isTestMode: true,
-          },
-        });
+    MinigameCore.getInstance().resetCompletely();
+    globalGameInstance = StartGame("test-game-container");
+
+    const networkManager = NetworkManager.getInstance();
+
+    const handleSceneReady = async (sceneInstance: Phaser.Scene) => {
+      if (sceneInstance.scene.key !== "PreloadScene") return;
+
+      // Gỡ listener ngay khi dùng xong để tránh gọi lại
+      EventBus.removeListener("current-scene-ready", handleSceneReady);
+
+      const testRoomId = `test_scene_${sceneToLaunch}`;
+      console.log(
+        `[TEST MODE] Preparing to join shared test room: "${testRoomId}"`
+      );
+
+      try {
+        await networkManager.joinRoundRoom("test", 0, testRoomId);
+
+        // Kiểm tra xem game có còn tồn tại không trước khi bắt đầu scene
+        if (globalGameInstance) {
+          console.log(
+            `[TEST MODE] Successfully joined room. Launching scene: ${sceneToLaunch}`
+          );
+          sceneInstance.scene.start(sceneToLaunch, {
+            roundData: {
+              roundNumber: 1,
+              gameTimeLimit: 999,
+              isTestMode: true,
+            },
+          });
+        }
+      } catch (error) {
+        console.error("[TEST MODE] Failed to join test room:", error);
       }
     };
 
     EventBus.on("current-scene-ready", handleSceneReady);
 
+    // CLEANUP ĐƠN GIẢN - CHỈ LOG, KHÔNG RESET GLOBAL FLAG
     return () => {
-      if (game.current) {
-        console.log("Destroying test game instance...");
-        game.current.destroy(true);
-        game.current = null;
-      }
-      EventBus.removeListener("current-scene-ready", handleSceneReady);
+      console.log(
+        "[CLEANUP] TestGameWrapper cleanup function called - keeping game alive for Strict Mode."
+      );
+      // KHÔNG LÀM GÌ CẢ - để cho global lock hoạt động
+      // Game sẽ được cleanup khi thực sự rời trang (window unload)
     };
-  }, [sceneToLaunch]); // Hook này chỉ chạy một lần khi component mount
+  }, [sceneToLaunch]); // Phụ thuộc vẫn giữ nguyên
 
-  // Lắng nghe các sự kiện từ game
+  // useEffect cho các event khác không thay đổi
   useEffect(() => {
-    // Đây là sự kiện "kết thúc" trong chế độ test
     const handleQuizTrigger = () => {
       console.log("Test Mode: Quiz trigger detected. Calling onGameEnd.");
       onGameEnd();
     };
 
-    const handleSceneLoadingStart = () => setShowSceneLoading(true);
-    // Trong chế độ test, scene sẽ tự ẩn sau khi load xong hoặc người dùng nhấn bắt đầu
-    const handleSceneLoadingComplete = () => {
-      // setShowSceneLoading(false); // Có thể để user nhấn nút
+    const handleSceneLoadingStart = (data: { sceneName: string }) => {
+      setLoadingState({ isVisible: true, sceneName: data.sceneName });
     };
-    const handleUserStart = () => setShowSceneLoading(false);
+
+    const handleUserStart = () => {
+      setLoadingState((prev) => ({ ...prev, isVisible: false }));
+    };
 
     EventBus.on("manual-quiz-trigger", handleQuizTrigger);
     EventBus.on("scene-loading-start", handleSceneLoadingStart);
-    EventBus.on("scene-loading-complete", handleSceneLoadingComplete);
     EventBus.on("scene-loading-user-start", handleUserStart);
 
     return () => {
       EventBus.removeListener("manual-quiz-trigger", handleQuizTrigger);
       EventBus.removeListener("scene-loading-start", handleSceneLoadingStart);
-      EventBus.removeListener(
-        "scene-loading-complete",
-        handleSceneLoadingComplete
-      );
       EventBus.removeListener("scene-loading-user-start", handleUserStart);
     };
   }, [onGameEnd]);
 
   return (
     <div className="w-full h-screen relative overflow-hidden">
-      {/* Container cho Phaser render */}
       <div
         id="test-game-container"
         className="absolute inset-0 w-full h-full"
       />
-
-      {/* Overlay màn hình chờ */}
-      <SceneLoadingOverlay isVisible={showSceneLoading} />
-
-      {/* Overlay hiển thị điểm và thời gian */}
-      <MinigameOverlay isVisible={!showSceneLoading} />
+      <SceneLoadingOverlay
+        isVisible={loadingState.isVisible}
+        sceneName={loadingState.sceneName} // Truyền sceneName vào
+      />
+      <MinigameOverlay isVisible={!loadingState.isVisible} />
     </div>
   );
 };

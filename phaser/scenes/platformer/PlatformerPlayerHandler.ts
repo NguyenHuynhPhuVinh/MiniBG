@@ -38,6 +38,7 @@ export class PlatformerPlayerHandler {
    * @param inputManager Manager xử lý input
    * @param cameraManager Manager xử lý camera
    * @param logicCore Core logic để xử lý game interactions
+   * @param networkManager Manager xử lý network (MỚI)
    * @returns Player instance đã được setup hoàn chỉnh
    */
   public spawnPlayer(
@@ -45,7 +46,8 @@ export class PlatformerPlayerHandler {
     platformsLayer: Phaser.Tilemaps.TilemapLayer,
     inputManager: InputManager,
     cameraManager: CameraManager,
-    logicCore: any
+    logicCore: any,
+    networkManager: any // NetworkManager được thêm vào
   ): Player {
     console.log(
       `🏃 PlatformerPlayerHandler: Spawning player at (${spawnPoint.x}, ${spawnPoint.y})`
@@ -62,7 +64,8 @@ export class PlatformerPlayerHandler {
         physics: this.scene.getPlayerPhysicsConfig(), // Lấy physics config từ scene
       },
       inputManager,
-      cameraManager
+      cameraManager,
+      networkManager // Truyền NetworkManager
     );
 
     // 2. Setup collision với platforms

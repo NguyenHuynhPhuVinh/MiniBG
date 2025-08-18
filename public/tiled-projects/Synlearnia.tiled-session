@@ -3,12 +3,12 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "maps/level-1-forest.tmx",
+    "activeFile": "maps/level-2-desert.tmx",
     "expandedProjectPaths": [
-        "maps",
+        "exports",
         ".",
-        "tilesets",
-        "exports"
+        "maps",
+        "tilesets"
     ],
     "fileStates": {
         "": {
@@ -114,15 +114,16 @@
     "map.tileWidth": 64,
     "map.width": 32,
     "openFiles": [
-        "maps/level-1-forest.tmx"
+        "maps/level-1-forest.tmx",
+        "maps/level-2-desert.tmx"
     ],
     "project": "Synlearnia.tiled-project",
     "property.type": "bool",
     "recentFiles": [
         "maps/level-1-forest.tmx",
+        "maps/level-2-desert.tmx",
         "tilesets/kenney-desert.json",
         "tilesets/kenney-forest.json",
-        "maps/level-2-desert.tmx",
         "tilesets/kenney-forest.tsx",
         "tilesets/kenney-desert.tsx",
         "tilesets/Map.tsx",
