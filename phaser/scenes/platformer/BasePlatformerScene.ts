@@ -10,6 +10,7 @@ import {
   NetworkManager,
   AnimationManager,
   AnimationState,
+  MobileUIHandler,
 } from "../../classes";
 import { CAMERA_CONFIG, TIMER_CONFIG } from "../../config/constants";
 import { PlatformerLogicCore } from "./PlatformerLogicCore";
@@ -70,6 +71,10 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   protected inputManager!: InputManager; // Quản lý input keyboard
   protected cameraManager!: CameraManager; // Quản lý camera effects
   protected timerManager!: TimerManager; // Quản lý thời gian game
+
+  // === MOBILE SUPPORT ===
+  private mobileUIHandler?: MobileUIHandler; // UI điều khiển trên di động
+  private isMobile: boolean = false; // Cờ phát hiện thiết bị di động
 
   // === MULTIPLAYER ===
   protected networkManager!: NetworkManager; // Quản lý kết nối mạng
@@ -178,6 +183,24 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     this.load.audio(
       "hurt",
       "/kenney_new-platformer-pack-1.0/Sounds/sfx_hurt.ogg"
+    );
+
+    // THÊM MỚI: Load assets cho Mobile UI
+    this.load.image(
+      "dpad_left",
+      "/mobile-controls-1/Sprites/Style C/Default/dpad_element_east.png"
+    );
+    this.load.image(
+      "dpad_right",
+      "/mobile-controls-1/Sprites/Style C/Default/dpad_element_west.png"
+    );
+    this.load.image(
+      "button_jump",
+      "/mobile-controls-1/Sprites/Icons/Default/icon_jump.png"
+    );
+    this.load.image(
+      "button_grab",
+      "/mobile-controls-1/Sprites/Icons/Default/icon_hand.png"
     );
   }
 
@@ -344,6 +367,9 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     // Emit event để NetworkManager biết Scene đã sẵn sàng
     EventBus.emit("scene-ready-for-network", this.SCENE_NAME);
 
+    // THÊM MỚI: Lắng nghe sự kiện để điều khiển UI di động
+    this.registerMobileUIEventListeners();
+
     // Thông báo cho React component rằng scene đã sẵn sàng (failsafe cho loading overlay)
     this.notifySceneReady();
   }
@@ -355,7 +381,19 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     // Input Manager - xử lý input PC (Arrow keys, WASD, Space)
     this.inputManager = new InputManager(this);
 
-    // Camera Manager - follow player với config chuẩn
+    // THÊM MỚI: Kiểm tra thiết bị để quyết định bật Mobile UI
+    this.isMobile =
+      (this.sys.game.device.os as any).android ||
+      (this.sys.game.device.os as any).iOS ||
+      this.cameras.main.width < 1024;
+
+    if (this.isMobile) {
+      console.log("📱 Mobile device detected. Creating mobile UI controls.");
+      this.mobileUIHandler = new MobileUIHandler(this, this.inputManager);
+      this.mobileUIHandler.hide();
+    }
+
+    // Camera Manager - follow player với config chuẩn (adjust zoom for mobile)
     const worldDimensions = this.worldBuilder.getWorldDimensions();
     this.cameraManager = new CameraManager(this, {
       followOffset: CAMERA_CONFIG.DEFAULT_OFFSET,
@@ -366,6 +404,7 @@ export abstract class BasePlatformerScene extends BaseGameScene {
         width: worldDimensions.width,
         height: worldDimensions.height,
       },
+      zoom: this.isMobile ? 0.8 : 1.2,
     });
 
     // Timer Manager
@@ -784,6 +823,10 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   protected cleanupOnShutdown(): void {
     console.log(`🗑️ ${this.SCENE_NAME}: Starting cleanup...`);
 
+    // Dọn dẹp Mobile UI Handler
+    this.mobileUIHandler?.destroy();
+    this.mobileUIHandler = undefined;
+
     super.cleanupOnShutdown();
 
     // GỠ BỎ LISTENER KHI SCENE BỊ HỦY
@@ -820,6 +863,28 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     this.playerHandler?.cleanup();
 
     console.log(`🗑️ ${this.SCENE_NAME} platformer cleanup completed.`);
+  }
+
+  // THÊM MỚI: Quản lý event listeners cho Mobile UI
+  private registerMobileUIEventListeners(): void {
+    if (!this.isMobile) return;
+
+    const showControls = () => this.mobileUIHandler?.show();
+    const hideControls = () => this.mobileUIHandler?.hide();
+
+    EventBus.on("scene-loading-user-start", showControls, this);
+    EventBus.on("show-quiz-overlay", hideControls, this);
+    EventBus.on("quiz-completed", hideControls, this);
+
+    this.events.on(
+      Phaser.Scenes.Events.SHUTDOWN,
+      () => {
+        EventBus.off("scene-loading-user-start", showControls, this);
+        EventBus.off("show-quiz-overlay", hideControls, this);
+        EventBus.off("quiz-completed", hideControls, this);
+      },
+      this
+    );
   }
 
   /**

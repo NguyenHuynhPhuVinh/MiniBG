@@ -1,15 +1,15 @@
-import { Scene } from 'phaser';
+import { Scene } from "phaser";
 
 /**
  * 🎮 INPUT STATE INTERFACE - Trạng thái tất cả input keys
  */
 export interface InputState {
-  left: boolean;    // ← hoặc A
-  right: boolean;   // → hoặc D
-  up: boolean;      // ↑ hoặc W
-  down: boolean;    // ↓ hoặc S
-  jump: boolean;    // Space hoặc ↑ hoặc W
-  grab: boolean;    // E - Hành động nắm người chơi khác
+  left: boolean; // ← hoặc A
+  right: boolean; // → hoặc D
+  up: boolean; // ↑ hoặc W
+  down: boolean; // ↓ hoặc S
+  jump: boolean; // Space hoặc ↑ hoặc W
+  grab: boolean; // E - Hành động nắm người chơi khác
 }
 
 /**
@@ -23,17 +23,27 @@ export interface InputState {
  */
 export class InputManager {
   private scene: Scene;
-  private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;    // Arrow keys
-  private wasdKeys?: any;                                      // WASD keys
-  private spaceKey?: Phaser.Input.Keyboard.Key;               // Space key
-  private grabKey?: Phaser.Input.Keyboard.Key;               // E key cho grab
+  private cursors?: Phaser.Types.Input.Keyboard.CursorKeys; // Arrow keys
+  private wasdKeys?: any; // WASD keys
+  private spaceKey?: Phaser.Input.Keyboard.Key; // Space key
+  private grabKey?: Phaser.Input.Keyboard.Key; // E key cho grab
   private inputState: InputState = {
     left: false,
     right: false,
     up: false,
     down: false,
     jump: false,
-    grab: false
+    grab: false,
+  };
+
+  // THÊM MỚI: State dành cho input trên thiết bị di động
+  public mobileState: InputState = {
+    left: false,
+    right: false,
+    up: false,
+    down: false,
+    jump: false,
+    grab: false,
   };
 
   constructor(scene: Scene) {
@@ -50,10 +60,19 @@ export class InputManager {
 
     // WASD keys, Space key và E key
     if (this.scene.input.keyboard) {
-      this.wasdKeys = this.scene.input.keyboard.addKeys('W,S,A,D');
-      this.spaceKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-      this.grabKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+      this.wasdKeys = this.scene.input.keyboard.addKeys("W,S,A,D");
+      this.spaceKey = this.scene.input.keyboard.addKey(
+        Phaser.Input.Keyboard.KeyCodes.SPACE
+      );
+      this.grabKey = this.scene.input.keyboard.addKey(
+        Phaser.Input.Keyboard.KeyCodes.E
+      );
     }
+  }
+
+  // THÊM MỚI: API để MobileUIHandler ghi trạng thái input
+  public setMobileInput(key: keyof InputState, value: boolean): void {
+    this.mobileState[key] = value;
   }
 
   /**
@@ -84,6 +103,12 @@ export class InputManager {
       this.inputState.down = this.inputState.down || this.wasdKeys.S.isDown;
     }
 
+    // THÊM MỚI: Gộp với input từ mobile
+    this.inputState.left = this.inputState.left || this.mobileState.left;
+    this.inputState.right = this.inputState.right || this.mobileState.right;
+    this.inputState.up = this.inputState.up || this.mobileState.up;
+    this.inputState.down = this.inputState.down || this.mobileState.down;
+
     // Space key cho jump
     if (this.spaceKey) {
       this.inputState.jump = this.spaceKey.isDown;
@@ -92,10 +117,16 @@ export class InputManager {
     // Up key cũng có thể dùng để jump (W hoặc ↑ hoặc Space)
     this.inputState.jump = this.inputState.jump || this.inputState.up;
 
+    // THÊM MỚI: Jump từ mobile
+    this.inputState.jump = this.inputState.jump || this.mobileState.jump;
+
     // Đọc E key cho grab
     if (this.grabKey) {
       this.inputState.grab = this.grabKey.isDown;
     }
+
+    // THÊM MỚI: Grab từ mobile
+    this.inputState.grab = this.inputState.grab || this.mobileState.grab;
 
     return { ...this.inputState };
   }
@@ -121,24 +152,41 @@ export class InputManager {
    */
   public isJustPressed(key: keyof InputState): boolean {
     switch (key) {
-      case 'up':
-      case 'jump':
+      case "up":
+      case "jump":
         // Jump có thể từ Up arrow, W key, hoặc Space key
-        return (this.cursors?.up.isDown && Phaser.Input.Keyboard.JustDown(this.cursors.up)) ||
-               (this.wasdKeys?.W.isDown && Phaser.Input.Keyboard.JustDown(this.wasdKeys.W)) ||
-               (this.spaceKey?.isDown && Phaser.Input.Keyboard.JustDown(this.spaceKey)) ||
-               false;
-      case 'left':
-        return (this.cursors?.left.isDown && Phaser.Input.Keyboard.JustDown(this.cursors.left)) ||
-               (this.wasdKeys?.A.isDown && Phaser.Input.Keyboard.JustDown(this.wasdKeys.A)) ||
-               false;
-      case 'right':
-        return (this.cursors?.right.isDown && Phaser.Input.Keyboard.JustDown(this.cursors.right)) ||
-               (this.wasdKeys?.D.isDown && Phaser.Input.Keyboard.JustDown(this.wasdKeys.D)) ||
-               false;
-      case 'grab':
+        return (
+          (this.cursors?.up.isDown &&
+            Phaser.Input.Keyboard.JustDown(this.cursors.up)) ||
+          (this.wasdKeys?.W.isDown &&
+            Phaser.Input.Keyboard.JustDown(this.wasdKeys.W)) ||
+          (this.spaceKey?.isDown &&
+            Phaser.Input.Keyboard.JustDown(this.spaceKey)) ||
+          false
+        );
+      case "left":
+        return (
+          (this.cursors?.left.isDown &&
+            Phaser.Input.Keyboard.JustDown(this.cursors.left)) ||
+          (this.wasdKeys?.A.isDown &&
+            Phaser.Input.Keyboard.JustDown(this.wasdKeys.A)) ||
+          false
+        );
+      case "right":
+        return (
+          (this.cursors?.right.isDown &&
+            Phaser.Input.Keyboard.JustDown(this.cursors.right)) ||
+          (this.wasdKeys?.D.isDown &&
+            Phaser.Input.Keyboard.JustDown(this.wasdKeys.D)) ||
+          false
+        );
+      case "grab":
         // E key cho grab
-        return (this.grabKey?.isDown && Phaser.Input.Keyboard.JustDown(this.grabKey)) || false;
+        return (
+          (this.grabKey?.isDown &&
+            Phaser.Input.Keyboard.JustDown(this.grabKey)) ||
+          false
+        );
       default:
         return false;
     }
