@@ -6,6 +6,7 @@ import {
 import { BasePlatformerScene } from "../../scenes/platformer/BasePlatformerScene";
 import { AnimationManager, AnimationState } from "./AnimationManager";
 import { TextUtils } from "../../utils/TextUtils";
+import { InterpolationUtils } from "../../utils/InterpolationUtils";
 
 /**
  * 📡 PLATFORMER NETWORK HANDLER - Chuyên gia Xử lý Multiplayer
@@ -35,9 +36,8 @@ export class PlatformerNetworkHandler {
   // 🔧 Track created players để tránh duplicates
   private createdPlayers: Set<string> = new Set();
   private isListenersSetup: boolean = false; // Thêm cờ để đảm bảo listener chỉ setup 1 lần
-  
-  // <-- THÊM THUỘC TÍNH CHO NỘI SUY THỐNG NHẤT -->
-  private LERP_FACTOR = 0.25; // Dùng chung LERP_FACTOR cho nhất quán
+
+  // (Đã gom hằng số vào InterpolationUtils)
 
   constructor(
     scene: BasePlatformerScene,
@@ -126,78 +126,12 @@ export class PlatformerNetworkHandler {
    */
   public update(): void {
     this.remotePlayerSprites.forEach((sprite, sessionId) => {
-      const target_x = sprite.getData('target_x');
-      const target_y = sprite.getData('target_y');
-      const isGrabbed = sprite.getData('isGrabbed') === true;
-
-      if (typeof target_x !== 'number' || typeof target_y !== 'number') {
+      const target_x = sprite.getData("target_x");
+      const target_y = sprite.getData("target_y");
+      if (typeof target_x !== "number" || typeof target_y !== "number") {
         return;
       }
-
-      if (isGrabbed) {
-        // <-- LOGIC NỘI SUY CHO REMOTE PLAYER BỊ NẮM -->
-        // Vô hiệu hóa vật lý nhưng vẫn giữ nội suy mượt mà
-        const body = sprite.body as Phaser.Physics.Arcade.Body;
-        body.setVelocity(0, 0); // Dừng mọi chuyển động vật lý
-        body.setAllowGravity(false); // Tắt trọng lực
-        body.setImmovable(true); // Không bị đẩy bởi vật khác
-        
-        // Vẫn dùng nội suy tuyến tính để chuyển động mượt
-        sprite.x = Phaser.Math.Linear(sprite.x, target_x, this.LERP_FACTOR);
-        sprite.y = Phaser.Math.Linear(sprite.y, target_y, this.LERP_FACTOR);
-      } else {
-        // <-- LOGIC THÍCH ỨNG CHO REMOTE PLAYER TỰ DO -->
-        // Kiểm tra vị trí target có hợp lệ không
-        const worldHeight = this.scene.physics.world.bounds.height;
-        const worldWidth = this.scene.physics.world.bounds.width;
-
-        // Nếu target nằm ngoài world bounds hoặc dưới đáy -> không nội suy
-        if (
-          target_x < 0 ||
-          target_x > worldWidth ||
-          target_y < 0 ||
-          target_y > worldHeight
-        ) {
-          console.warn(
-            `[NetworkHandler] Invalid target position for ${sessionId}: (${target_x}, ${target_y})`
-          );
-          return;
-        }
-
-        // Tính khoảng cách để điều chỉnh tốc độ nội suy
-        const distanceX = Math.abs(target_x - sprite.x);
-        const distanceY = Math.abs(target_y - sprite.y);
-        const totalDistance = Math.sqrt(
-          distanceX * distanceX + distanceY * distanceY
-        );
-
-        // Điều chỉnh factor dựa trên khoảng cách
-        if (totalDistance > 200) {
-          // Khoảng cách quá lớn -> teleport ngay lập tức (có thể do lag hoặc respawn)
-          sprite.x = target_x;
-          sprite.y = target_y;
-        } else {
-          // Nội suy với factor thích ứng
-          let factor = 0.2; // Factor mặc định cho chuyển động chậm
-
-          if (totalDistance > 100) {
-            // Khoảng cách lớn (nhảy xa) -> nội suy nhanh
-            factor = 0.8;
-          } else if (totalDistance > 50) {
-            // Khoảng cách trung bình (nhảy) -> nội suy vừa
-            factor = 0.5;
-          } else if (totalDistance > 20) {
-            // Khoảng cách nhỏ (di chuyển nhanh) -> nội suy bình thường
-            factor = 0.3;
-          }
-          // Khoảng cách rất nhỏ (< 20) -> giữ factor mặc định 0.2
-
-          sprite.x = Phaser.Math.Linear(sprite.x, target_x, factor);
-          sprite.y = Phaser.Math.Linear(sprite.y, target_y, factor);
-        }
-      }
-      
-      // Cập nhật vị trí name tag
+      InterpolationUtils.updateVelocity(sprite, { x: target_x, y: target_y });
       const nameTag = this.remotePlayerNameTags.get(sessionId);
       if (nameTag) {
         nameTag.x = sprite.x;
@@ -297,11 +231,11 @@ export class PlatformerNetworkHandler {
 
       this.remotePlayerNameTags.set(sessionId, nameTag); // Lưu lại name tag
 
-      // Va chạm với nền đất nhưng không bị ảnh hưởng bởi trọng lực
+      // BẬT va chạm với nền đất và cấu hình body để dùng nội suy velocity
       this.scene.physics.add.collider(entity, this.platformsLayer);
-      // Thiết lập vật lý đơn giản: không bị trọng lực, không bị đẩy, như bức tường
       const body = entity.body as Phaser.Physics.Arcade.Body;
-      body.setAllowGravity(false);
+      body.setAllowGravity(true);
+      body.setCollideWorldBounds(true);
       body.setImmovable(true);
       body.pushable = false;
       body.setSize(48, 80);
@@ -322,9 +256,9 @@ export class PlatformerNetworkHandler {
       const $: any = getStateCallbacks(this.room!);
       ($ as any)(playerState).onChange(() => {
         // CẬP NHẬT DỮ LIỆU ĐỂ HÀM UPDATE() SỬ DỤNG
-        entity.setData('target_x', playerState.x);
-        entity.setData('target_y', playerState.y);
-        entity.setData('isGrabbed', playerState.isGrabbed); // <-- Thêm dòng này
+        entity.setData("target_x", playerState.x);
+        entity.setData("target_y", playerState.y);
+        entity.setData("isGrabbed", playerState.isGrabbed); // <-- Thêm dòng này
 
         // Cập nhật username nếu nó thay đổi (hiếm nhưng nên có)
         const nameTag = this.remotePlayerNameTags.get(sessionId);

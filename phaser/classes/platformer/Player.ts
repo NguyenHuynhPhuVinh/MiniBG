@@ -8,6 +8,7 @@ import { TextUtils } from "../../utils/TextUtils"; // <-- THÊM MỚI
 // THÊM MỚI: Import BasePlatformerScene để có thể gọi phương thức của nó
 import { BasePlatformerScene } from "../../scenes";
 import { Player as PlayerStateSchema } from "../core/types/GameRoomState"; // Import schema để type hinting
+import { InterpolationUtils } from "../../utils/InterpolationUtils";
 
 export interface PlayerConfig {
   x: number;
@@ -55,15 +56,15 @@ export class Player {
 
   // THÊM MỚI: Cờ để tránh gọi respawn nhiều lần
   private isDead: boolean = false;
-  
+
   // <-- THÊM CÁC BIẾN TRẠNG THÁI MỚI CHO TÍNH NĂNG NẮM VÀ THOÁT -->
   public playerState: PlayerStateSchema | null = null; // Lưu state từ server
   private struggleCooldown = 0; // Để tránh spam server
   private GRAB_DISTANCE_THRESHOLD = 80; // Khoảng cách tối đa để nắm (pixel)
 
-  // <-- THÊM CÁC THUỘC TÍNH MỚI CHO NỘI SUY -->
-  private targetPosition: { x: number, y: number } | null = null;
-  private LERP_FACTOR = 0.25; // Tăng một chút để bám theo tốt hơn
+  // <-- THÊM CÁC THUỘC TÍNH MỚI CHO NỘI SUY DỰA TRÊN VẬN TỐC -->
+  private serverTargetPosition: { x: number; y: number } | null = null;
+  // (Các hằng số đã gom vào InterpolationUtils)
 
   constructor(
     // SỬA ĐỔI: Thay Scene bằng BasePlatformerScene
@@ -118,13 +119,15 @@ export class Player {
     this.playerState = newState;
 
     if (newState.isGrabbed) {
-        this.targetPosition = { x: newState.x, y: newState.y };
-        // KHI BẮT ĐẦU BỊ NẮM: Teleport đến vị trí đầu tiên để tránh bị giật từ xa
-        if (!wasGrabbed) { 
-            this.sprite.setPosition(newState.x, newState.y);
-        }
+      // Lưu mục tiêu từ server
+      const firstTarget = !this.serverTargetPosition;
+      this.serverTargetPosition = { x: newState.x, y: newState.y };
+      // Nếu vừa bị nắm, teleport ngay để tránh giật từ xa
+      if (firstTarget && this.sprite) {
+        this.sprite.setPosition(newState.x, newState.y);
+      }
     } else {
-        this.targetPosition = null;
+      this.serverTargetPosition = null;
     }
   }
 
@@ -239,7 +242,8 @@ export class Player {
    * 🔄 UPDATE - Logic mới với tính năng nắm và thoát
    */
   public update(): void {
-    if (!this.sprite || !this.sprite.body || this.isDead || !this.playerState) return;
+    if (!this.sprite || !this.sprite.body || this.isDead || !this.playerState)
+      return;
 
     // THÊM MỚI: KIỂM TRA RƠI KHỎI MAP
     const worldHeight = this.scene.physics.world.bounds.height;
@@ -262,41 +266,37 @@ export class Player {
     // === LOGIC MỚI: PHÂN TÁCH DỰA TRÊN TRẠNG THÁI isGrabbed ===
     // =======================================================
 
-    if (this.playerState.isGrabbed && this.targetPosition) {
-      // ----- LOGIC KHI BỊ NẮM (ĐÃ CÓ NỘI SUY) -----
-      
-      // 1. TỰ LÀM MƯỢT chuyển động về phía vị trí server yêu cầu
-      this.sprite.x = Phaser.Math.Linear(this.sprite.x, this.targetPosition.x, this.LERP_FACTOR);
-      this.sprite.y = Phaser.Math.Linear(this.sprite.y, this.targetPosition.y, this.LERP_FACTOR);
+    if (this.playerState.isGrabbed && this.serverTargetPosition) {
+      // ----- LOGIC KHI BỊ NẮM (NỘI SUY BẰNG VẬN TỐC) -----
+      InterpolationUtils.updateVelocity(this.sprite, this.serverTargetPosition);
 
-      // 2. Vô hiệu hóa vật lý để không bị trôi đi
-      body.setVelocity(0, 0);
-
-      // 3. Xử lý animation "vùng vẫy"
+      // 2. Xử lý animation "vùng vẫy"
       // Client có quyền quyết định animation vùng vẫy của chính mình
       const isTryingToMove = inputState.left || inputState.right;
       if (isTryingToMove) {
-          this.animationManager.playAnimation("walk");
-          this.sprite.setFlipX(inputState.left);
+        this.animationManager.playAnimation("walk");
+        this.sprite.setFlipX(inputState.left);
       } else {
-          // Nếu không vùng vẫy, thì dùng animation từ server (do người nắm quyết định)
-          this.animationManager.playAnimation(this.playerState.animState as AnimationState);
-          this.sprite.setFlipX(this.playerState.flipX);
+        // Nếu không vùng vẫy, thì dùng animation từ server (do người nắm quyết định)
+        this.animationManager.playAnimation(
+          this.playerState.animState as AnimationState
+        );
+        this.sprite.setFlipX(this.playerState.flipX);
       }
 
       // 3. Xử lý "nỗ lực thoát" (struggle)
-      const isStruggling = inputState.left || inputState.right || inputState.jump;
+      const isStruggling =
+        inputState.left || inputState.right || inputState.jump;
       if (isStruggling && this.scene.time.now > this.struggleCooldown) {
         this.networkManager.room?.send("struggle");
         this.struggleCooldown = this.scene.time.now + 100; // Cooldown 100ms
       }
-
     } else if (this.playerState.isGrabbing) {
       // ----- LOGIC KHI ĐANG NẮM AI ĐÓ -----
-      
+
       // Di chuyển chậm hơn khi đang nắm người khác
       const grabSpeed = this.config.physics.speed * 0.7; // Chậm hơn 30%
-      
+
       if (inputState.left) {
         body.setVelocityX(-grabSpeed);
       } else if (inputState.right) {
@@ -310,13 +310,12 @@ export class Player {
         // Có thể thêm sound effect "can't jump" ở đây
         console.log("Cannot jump while grabbing someone!");
       }
-      
+
       // Cập nhật animation dựa trên velocity
       this.animationManager.updateAnimation(body.velocity, body.blocked.down);
-      
     } else {
       // ----- LOGIC DI CHUYỂN BÌNH THƯỜNG -----
-      
+
       if (inputState.left) {
         body.setVelocityX(-this.config.physics.speed);
       } else if (inputState.right) {
@@ -329,7 +328,7 @@ export class Player {
         body.setVelocityY(-this.config.physics.jumpPower);
         this.scene.sound.play("jump");
       }
-      
+
       // Cập nhật animation dựa trên velocity
       this.animationManager.updateAnimation(body.velocity, body.blocked.down);
     }
@@ -337,21 +336,31 @@ export class Player {
     // ----- LOGIC CHUNG CHO CẢ HAI TRẠNG THÁI -----
 
     // 4. Xử lý hành động "nắm" hoặc "bỏ nắm"
-    if (this.inputManager.isJustPressed('grab')) {
-       if (this.playerState.isGrabbing) {
-           // Nếu đang nắm ai đó -> bỏ nắm
-           console.log(`[Client] Requesting to release grab`);
-           this.networkManager.room?.send("requestGrab", { targetSessionId: this.playerState.isGrabbing });
-       } else {
-           // Nếu không nắm ai -> tìm người để nắm
-           const closestRemotePlayer = this.scene.findClosestRemotePlayer(this.sprite.x, this.sprite.y, this.GRAB_DISTANCE_THRESHOLD);
-           if (closestRemotePlayer) {
-               console.log(`[Client] Requesting to grab ${closestRemotePlayer.sessionId}`);
-               this.networkManager.room?.send("requestGrab", { targetSessionId: closestRemotePlayer.sessionId });
-           }
-       }
+    if (this.inputManager.isJustPressed("grab")) {
+      if (this.playerState.isGrabbing) {
+        // Nếu đang nắm ai đó -> bỏ nắm
+        console.log(`[Client] Requesting to release grab`);
+        this.networkManager.room?.send("requestGrab", {
+          targetSessionId: this.playerState.isGrabbing,
+        });
+      } else {
+        // Nếu không nắm ai -> tìm người để nắm
+        const closestRemotePlayer = this.scene.findClosestRemotePlayer(
+          this.sprite.x,
+          this.sprite.y,
+          this.GRAB_DISTANCE_THRESHOLD
+        );
+        if (closestRemotePlayer) {
+          console.log(
+            `[Client] Requesting to grab ${closestRemotePlayer.sessionId}`
+          );
+          this.networkManager.room?.send("requestGrab", {
+            targetSessionId: closestRemotePlayer.sessionId,
+          });
+        }
+      }
     }
-    
+
     // 5. Gửi trạng thái lên server (giữ nguyên)
     // QUAN TRỌNG: Vẫn gửi update vị trí, vì khi bị nắm, server sẽ ghi đè lên vị trí này.
     // Điều này đảm bảo khi được thả ra, vị trí của bạn là chính xác.
