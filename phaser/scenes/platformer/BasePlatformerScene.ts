@@ -75,6 +75,7 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   // === MOBILE SUPPORT ===
   private mobileUIHandler?: MobileUIHandler; // UI điều khiển trên di động
   private isMobile: boolean = false; // Cờ phát hiện thiết bị di động
+  private mobileTouchCleanupFns: Array<() => void> = [];
 
   // === MULTIPLAYER ===
   protected networkManager!: NetworkManager; // Quản lý kết nối mạng
@@ -389,6 +390,8 @@ export abstract class BasePlatformerScene extends BaseGameScene {
 
     if (this.isMobile) {
       console.log("📱 Mobile device detected. Creating mobile UI controls.");
+      // Áp dụng cấu hình chạm cho mobile (chặn long-press/select/context menu)
+      this.applyMobileTouchDefaults();
       this.mobileUIHandler = new MobileUIHandler(this, this.inputManager);
       this.mobileUIHandler.hide();
     }
@@ -827,6 +830,12 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     this.mobileUIHandler?.destroy();
     this.mobileUIHandler = undefined;
 
+    // Gỡ các listener/tweaks cho mobile nếu có
+    try {
+      this.mobileTouchCleanupFns.forEach((fn) => fn());
+    } catch {}
+    this.mobileTouchCleanupFns = [];
+
     super.cleanupOnShutdown();
 
     // GỠ BỎ LISTENER KHI SCENE BỊ HỦY
@@ -869,7 +878,23 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   private registerMobileUIEventListeners(): void {
     if (!this.isMobile) return;
 
-    const showControls = () => this.mobileUIHandler?.show();
+    const requestFullscreen = () => {
+      try {
+        if (!this.scale.isFullscreen) {
+          this.scale.startFullscreen();
+        }
+      } catch (e) {
+        // Trình duyệt có thể yêu cầu user gesture; ta sẽ gọi lại ở pointerdown
+      }
+    };
+
+    // Yêu cầu fullscreen ở lần chạm đầu tiên (đảm bảo có user gesture)
+    this.input.once("pointerdown", requestFullscreen, this);
+
+    const showControls = () => {
+      this.mobileUIHandler?.show();
+      requestFullscreen();
+    };
     const hideControls = () => this.mobileUIHandler?.hide();
 
     EventBus.on("scene-loading-user-start", showControls, this);
@@ -885,6 +910,135 @@ export abstract class BasePlatformerScene extends BaseGameScene {
       },
       this
     );
+  }
+
+  // THÊM MỚI: Áp dụng cấu hình chạm để tránh long-press mở menu hệ thống
+  private applyMobileTouchDefaults(): void {
+    try {
+      const canvas = this.game.canvas as HTMLCanvasElement;
+      if (canvas && canvas.style) {
+        canvas.style.touchAction = "none"; // chặn gesture mặc định
+        (canvas.style as any).webkitUserSelect = "none";
+        canvas.style.userSelect = "none";
+        (canvas.style as any).webkitTouchCallout = "none";
+        (canvas.style as any).msUserSelect = "none";
+        (canvas.style as any).webkitTapHighlightColor = "rgba(0,0,0,0)";
+      }
+      // Chặn context menu (chuột phải / long-press)
+      const phaserMouse = (this.input as any).mouse;
+      if (phaserMouse && phaserMouse.disableContextMenu) {
+        phaserMouse.disableContextMenu();
+      }
+      // Chặn sự kiện contextmenu trên canvas ở một số trình duyệt
+      if (canvas) {
+        const ctxHandler = (e: Event) => e.preventDefault();
+        canvas.addEventListener("contextmenu", ctxHandler, { passive: false });
+        this.mobileTouchCleanupFns.push(() =>
+          canvas.removeEventListener("contextmenu", ctxHandler)
+        );
+
+        // Chặn double-tap zoom
+        let lastTouchEnd = 0;
+        const touchEndHandler = (e: TouchEvent) => {
+          const now = Date.now();
+          if (now - lastTouchEnd <= 350) {
+            e.preventDefault();
+          }
+          lastTouchEnd = now;
+        };
+        canvas.addEventListener("touchend", touchEndHandler, {
+          passive: false,
+        });
+        this.mobileTouchCleanupFns.push(() =>
+          canvas.removeEventListener("touchend", touchEndHandler)
+        );
+
+        // Chặn pinch-zoom (nhiều ngón)
+        const touchStartHandler = (e: TouchEvent) => {
+          if (e.touches && e.touches.length > 1) {
+            e.preventDefault();
+          }
+        };
+        canvas.addEventListener("touchstart", touchStartHandler, {
+          passive: false,
+        });
+        this.mobileTouchCleanupFns.push(() =>
+          canvas.removeEventListener("touchstart", touchStartHandler)
+        );
+
+        // Chặn dblclick zoom trên một số trình duyệt
+        const dblHandler = (e: MouseEvent) => e.preventDefault();
+        canvas.addEventListener(
+          "dblclick",
+          dblHandler as any,
+          { passive: false } as any
+        );
+        this.mobileTouchCleanupFns.push(() =>
+          canvas.removeEventListener("dblclick", dblHandler as any)
+        );
+
+        // iOS Safari: chặn gesture pinch
+        const gesturePrevent = (e: Event) => e.preventDefault();
+        canvas.addEventListener(
+          "gesturestart" as any,
+          gesturePrevent as any,
+          { passive: false } as any
+        );
+        canvas.addEventListener(
+          "gesturechange" as any,
+          gesturePrevent as any,
+          { passive: false } as any
+        );
+        canvas.addEventListener(
+          "gestureend" as any,
+          gesturePrevent as any,
+          { passive: false } as any
+        );
+        this.mobileTouchCleanupFns.push(() => {
+          canvas.removeEventListener(
+            "gesturestart" as any,
+            gesturePrevent as any
+          );
+          canvas.removeEventListener(
+            "gesturechange" as any,
+            gesturePrevent as any
+          );
+          canvas.removeEventListener(
+            "gestureend" as any,
+            gesturePrevent as any
+          );
+        });
+
+        // Desktop: chặn ctrl/meta + wheel zoom trên canvas
+        const wheelHandler = (e: WheelEvent) => {
+          if ((e.ctrlKey as boolean) || (e as any).metaKey) {
+            e.preventDefault();
+          }
+        };
+        canvas.addEventListener("wheel", wheelHandler, { passive: false });
+        this.mobileTouchCleanupFns.push(() =>
+          canvas.removeEventListener("wheel", wheelHandler)
+        );
+      }
+
+      // Đặt meta viewport để vô hiệu hóa zoom người dùng
+      const head = document.head || document.getElementsByTagName("head")[0];
+      let meta = document.querySelector(
+        'meta[name="viewport"]'
+      ) as HTMLMetaElement | null;
+      const desired =
+        "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no";
+      if (!meta) {
+        meta = document.createElement("meta");
+        meta.name = "viewport";
+        meta.content = desired;
+        head?.appendChild(meta);
+      } else {
+        meta.content = desired;
+      }
+    } catch (e) {
+      // an toàn: không làm gì nếu DOM không sẵn sàng
+    }
   }
 
   /**

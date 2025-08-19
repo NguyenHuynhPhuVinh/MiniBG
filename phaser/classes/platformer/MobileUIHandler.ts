@@ -36,15 +36,23 @@ export class MobileUIHandler {
     // Lấy cấu hình layout theo hướng màn hình
     const cfg = this.getLayoutConfig();
     const size = cfg.size;
-    const baseY = height - cfg.bottom - size / 2; // chỉ ảnh hưởng trục Y
-    const leftX = cfg.left + size / 2; // không phụ thuộc bottom
-    const rightX = leftX + size + cfg.spacing;
+    const dpadSize = Math.round(size * cfg.dpadScale);
+    const dpadSpacing = Math.round(cfg.spacing * cfg.dpadSpacingScale);
+    const baseY = height - cfg.bottom - dpadSize / 2; // chỉ ảnh hưởng trục Y
+    const leftX = cfg.left + dpadSize / 2; // không phụ thuộc bottom
+    const rightX = leftX + dpadSize + dpadSpacing;
 
     // --- Nút di chuyển ---
     const dpadLeft = this.createButton("dpad_left", leftX, baseY, "left");
-    dpadLeft.setDisplaySize(size, size).setScrollFactor(0).setDepth(10001);
+    dpadLeft
+      .setDisplaySize(dpadSize, dpadSize)
+      .setScrollFactor(0)
+      .setDepth(10001);
     const dpadRight = this.createButton("dpad_right", rightX, baseY, "right");
-    dpadRight.setDisplaySize(size, size).setScrollFactor(0).setDepth(10001);
+    dpadRight
+      .setDisplaySize(dpadSize, dpadSize)
+      .setScrollFactor(0)
+      .setDepth(10001);
 
     // --- Nút hành động (xếp dọc ở góc phải): jump dưới, grab trên ---
     const actionX = width - cfg.right - size / 2; // không phụ thuộc bottom
@@ -96,9 +104,11 @@ export class MobileUIHandler {
     const { width, height } = this.scene.cameras.main;
     const cfg = this.getLayoutConfig();
     const size = cfg.size;
-    const baseY = height - cfg.bottom - size / 2;
-    const leftX = cfg.left + size / 2;
-    const rightX = leftX + size + cfg.spacing;
+    const dpadSize = Math.round(size * cfg.dpadScale);
+    const dpadSpacing = Math.round(cfg.spacing * cfg.dpadSpacingScale);
+    const baseY = height - cfg.bottom - dpadSize / 2;
+    const leftX = cfg.left + dpadSize / 2;
+    const rightX = leftX + dpadSize + dpadSpacing;
     const actionX = width - cfg.right - size / 2;
     const jumpY = baseY;
     const grabY = baseY - size - cfg.spacing;
@@ -106,8 +116,8 @@ export class MobileUIHandler {
     const children = this.container.list as Phaser.GameObjects.Image[];
     if (children.length >= 4) {
       const [dpadLeft, dpadRight, jumpButton, grabButton] = children;
-      dpadLeft.setPosition(leftX, baseY).setDisplaySize(size, size);
-      dpadRight.setPosition(rightX, baseY).setDisplaySize(size, size);
+      dpadLeft.setPosition(leftX, baseY).setDisplaySize(dpadSize, dpadSize);
+      dpadRight.setPosition(rightX, baseY).setDisplaySize(dpadSize, dpadSize);
       jumpButton.setPosition(actionX, jumpY).setDisplaySize(size, size);
       grabButton.setPosition(actionX, grabY).setDisplaySize(size, size);
     }
@@ -120,6 +130,8 @@ export class MobileUIHandler {
     left: number;
     right: number;
     spacing: number;
+    dpadScale: number;
+    dpadSpacingScale: number;
   } {
     const cam = this.scene.cameras.main;
     const isLandscape = cam.width >= cam.height;
@@ -129,10 +141,12 @@ export class MobileUIHandler {
       const size = Math.max(80, Math.min(140, Math.floor(cam.height * 0.18)));
       return {
         size,
-        bottom: 14,
-        left: 18,
-        right: 18,
+        bottom: 0,
+        left: 16,
+        right: 16,
         spacing: 18,
+        dpadScale: 1.25,
+        dpadSpacingScale: 2.0,
       };
     }
 
@@ -140,10 +154,12 @@ export class MobileUIHandler {
     const size = Math.max(56, Math.min(110, Math.floor(cam.height * 0.1)));
     return {
       size,
-      bottom: 6,
+      bottom: 0,
       left: 16,
       right: 16,
       spacing: 16,
+      dpadScale: 1.2,
+      dpadSpacingScale: 1.25,
     };
   }
 

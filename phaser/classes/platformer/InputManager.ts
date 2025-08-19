@@ -46,6 +46,16 @@ export class InputManager {
     grab: false,
   };
 
+  // THÊM MỚI: Bộ cờ JustPressed cho mobile (được set tại thời điểm pointerdown)
+  private mobileJustPressed: InputState = {
+    left: false,
+    right: false,
+    up: false,
+    down: false,
+    jump: false,
+    grab: false,
+  };
+
   constructor(scene: Scene) {
     this.scene = scene;
     this.setupKeyboardInput();
@@ -72,6 +82,10 @@ export class InputManager {
 
   // THÊM MỚI: API để MobileUIHandler ghi trạng thái input
   public setMobileInput(key: keyof InputState, value: boolean): void {
+    if (value && !this.mobileState[key]) {
+      // Rising edge -> đánh dấu vừa nhấn
+      this.mobileJustPressed[key] = true;
+    }
     this.mobileState[key] = value;
   }
 
@@ -151,10 +165,16 @@ export class InputManager {
    * @returns true nếu key vừa được nhấn
    */
   public isJustPressed(key: keyof InputState): boolean {
+    // Helper để tiêu thụ cờ mobile just pressed (và reset về false)
+    const consumeMobile = (k: keyof InputState) => {
+      const was = this.mobileJustPressed[k];
+      if (was) this.mobileJustPressed[k] = false;
+      return was;
+    };
+
     switch (key) {
       case "up":
       case "jump":
-        // Jump có thể từ Up arrow, W key, hoặc Space key
         return (
           (this.cursors?.up.isDown &&
             Phaser.Input.Keyboard.JustDown(this.cursors.up)) ||
@@ -162,7 +182,8 @@ export class InputManager {
             Phaser.Input.Keyboard.JustDown(this.wasdKeys.W)) ||
           (this.spaceKey?.isDown &&
             Phaser.Input.Keyboard.JustDown(this.spaceKey)) ||
-          false
+          consumeMobile("jump") ||
+          consumeMobile("up")
         );
       case "left":
         return (
@@ -170,7 +191,7 @@ export class InputManager {
             Phaser.Input.Keyboard.JustDown(this.cursors.left)) ||
           (this.wasdKeys?.A.isDown &&
             Phaser.Input.Keyboard.JustDown(this.wasdKeys.A)) ||
-          false
+          consumeMobile("left")
         );
       case "right":
         return (
@@ -178,17 +199,16 @@ export class InputManager {
             Phaser.Input.Keyboard.JustDown(this.cursors.right)) ||
           (this.wasdKeys?.D.isDown &&
             Phaser.Input.Keyboard.JustDown(this.wasdKeys.D)) ||
-          false
+          consumeMobile("right")
         );
       case "grab":
-        // E key cho grab
         return (
           (this.grabKey?.isDown &&
             Phaser.Input.Keyboard.JustDown(this.grabKey)) ||
-          false
+          consumeMobile("grab")
         );
       default:
-        return false;
+        return consumeMobile(key);
     }
   }
 
