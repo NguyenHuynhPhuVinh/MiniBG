@@ -45,17 +45,21 @@ export class MinigameCore {
   // === API ĐƠN GIẢN CHO SCENES ===
 
   /**
-   * ➕ ADD SCORE - Cộng điểm (gọi từ scene)
+   * ➕ ADD SCORE - Cộng điểm (gọi từ scene hoặc quiz)
    */
   public addScore(amount: number): number {
-    if (!this.isGameActive) return this.currentScore;
-
+    // KHÔNG CHECK isGameActive - cho phép cộng điểm cả khi đang quiz
     const oldScore = this.currentScore;
     this.currentScore += amount;
 
     console.log(`➕ Score: ${oldScore} → ${this.currentScore} (+${amount})`);
 
     // Emit event để UI cập nhật
+    console.log(`📡 Emitting minigame-score-updated event:`, {
+      oldScore,
+      newScore: this.currentScore,
+      change: amount,
+    });
     EventBus.emit("minigame-score-updated", {
       oldScore,
       newScore: this.currentScore,
@@ -66,11 +70,10 @@ export class MinigameCore {
   }
 
   /**
-   * ➖ SUBTRACT SCORE - Trừ điểm (gọi từ scene)
+   * ➖ SUBTRACT SCORE - Trừ điểm (gọi từ scene hoặc quiz)
    */
   public subtractScore(amount: number): number {
-    if (!this.isGameActive) return this.currentScore;
-
+    // KHÔNG CHECK isGameActive - cho phép trừ điểm cả khi đang quiz
     const oldScore = this.currentScore;
     this.currentScore = Math.max(0, this.currentScore - amount); // Không cho điểm âm
 

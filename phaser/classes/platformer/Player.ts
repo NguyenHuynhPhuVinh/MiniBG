@@ -4,11 +4,16 @@ import { InputManager } from "./InputManager";
 import { CameraManager } from "./CameraManager";
 import { CharacterAnimations, DEFAULT_CHARACTER } from "./CharacterFrames";
 import { NetworkManager } from "../core/NetworkManager";
+import { TextUtils } from "../../utils/TextUtils"; // <-- THÊM MỚI
+// THÊM MỚI: Import BasePlatformerScene để có thể gọi phương thức của nó
+import { BasePlatformerScene } from "../../scenes";
+import { Player as PlayerStateSchema } from "../core/types/GameRoomState"; // Import schema để type hinting
 
 export interface PlayerConfig {
   x: number;
   y: number;
   texture: string;
+  username: string; // <-- THÊM MỚI
   characterData?: CharacterAnimations;
   physics?: {
     speed: number;
@@ -32,8 +37,10 @@ export interface PlayerConfig {
  */
 export class Player {
   // === CORE COMPONENTS ===
-  private scene: Scene;
+  // SỬA ĐỔI: Thay Scene bằng BasePlatformerScene để có thể truy cập các phương thức respawn
+  private scene: BasePlatformerScene;
   private sprite!: Phaser.Physics.Arcade.Sprite;
+  private nameTag!: Phaser.GameObjects.Text; // <-- THÊM MỚI
   private animationManager!: AnimationManager;
   private inputManager: InputManager;
   private cameraManager: CameraManager;
@@ -46,8 +53,21 @@ export class Player {
     flipX?: boolean;
   } = {};
 
+  // THÊM MỚI: Cờ để tránh gọi respawn nhiều lần
+  private isDead: boolean = false;
+  
+  // <-- THÊM CÁC BIẾN TRẠNG THÁI MỚI CHO TÍNH NĂNG NẮM VÀ THOÁT -->
+  public playerState: PlayerStateSchema | null = null; // Lưu state từ server
+  private struggleCooldown = 0; // Để tránh spam server
+  private GRAB_DISTANCE_THRESHOLD = 80; // Khoảng cách tối đa để nắm (pixel)
+
+  // <-- THÊM CÁC THUỘC TÍNH MỚI CHO NỘI SUY -->
+  private targetPosition: { x: number, y: number } | null = null;
+  private LERP_FACTOR = 0.25; // Tăng một chút để bám theo tốt hơn
+
   constructor(
-    scene: Scene,
+    // SỬA ĐỔI: Thay Scene bằng BasePlatformerScene
+    scene: BasePlatformerScene,
     config: PlayerConfig,
     inputManager: InputManager,
     cameraManager: CameraManager,
@@ -61,6 +81,7 @@ export class Player {
       x: config.x,
       y: config.y,
       texture: config.texture,
+      username: config.username, // <-- THÊM MỚI
       characterData: config.characterData || DEFAULT_CHARACTER,
       physics: config.physics || {
         speed: 200,
@@ -72,6 +93,7 @@ export class Player {
 
     this.setupFrames();
     this.createSprite();
+    this.createNameTag(); // <-- THÊM MỚI: Gọi hàm tạo name tag
 
     // 🔧 Check if sprite creation succeeded
     if (!this.sprite) {
@@ -84,6 +106,26 @@ export class Player {
     this.setupPhysics();
     this.setupAnimations();
     this.setupCamera();
+  }
+
+  // <-- THÊM PHƯƠNG THỨC MỚI -->
+  /**
+   * Cập nhật trạng thái cục bộ của player từ server.
+   * Được gọi bởi BasePlatformerScene.
+   */
+  public setPlayerState(newState: PlayerStateSchema): void {
+    const wasGrabbed = this.playerState?.isGrabbed;
+    this.playerState = newState;
+
+    if (newState.isGrabbed) {
+        this.targetPosition = { x: newState.x, y: newState.y };
+        // KHI BẮT ĐẦU BỊ NẮM: Teleport đến vị trí đầu tiên để tránh bị giật từ xa
+        if (!wasGrabbed) { 
+            this.sprite.setPosition(newState.x, newState.y);
+        }
+    } else {
+        this.targetPosition = null;
+    }
   }
 
   private setupFrames(): void {
@@ -146,6 +188,23 @@ export class Player {
     this.sprite.setDisplaySize(96, 96);
   }
 
+  private createNameTag(): void {
+    // <-- THÊM MỚI: Hàm tạo name tag
+    if (!this.sprite) return;
+
+    // Sử dụng TextUtils để tạo name tag chất lượng cao
+    this.nameTag = TextUtils.createPlayerNameTag(
+      this.scene,
+      this.sprite.x,
+      this.sprite.y - 60,
+      this.config.username,
+      true // isLocalPlayer = true
+    );
+
+    // Thêm hiệu ứng fade in cho name tag
+    TextUtils.fadeInText(this.nameTag, 300);
+  }
+
   private setupPhysics(): void {
     if (!this.sprite) {
       console.error(`❌ Cannot setup physics: sprite is null`);
@@ -154,10 +213,14 @@ export class Player {
 
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
     body.setBounce(this.config.physics.bounce);
+    // SỬA LẠI: Giữ nguyên collision với world bounds để không xuyên qua platform
     body.setCollideWorldBounds(true);
     body.setGravityY(this.config.physics.gravity);
-    body.setSize(64, 64);
-    body.setOffset(32, 64);
+
+    // THÊM/SỬA ĐỔI CÁC DÒNG NÀY
+    body.setSize(48, 80); // Thu nhỏ hitbox một chút để tránh va chạm không mong muốn
+    body.setOffset(40, 48); // Điều chỉnh offset cho phù hợp
+    body.pushable = false; // Đảm bảo người chơi chính cũng có thể bị đẩy
   }
 
   private setupAnimations(): void {
@@ -173,32 +236,125 @@ export class Player {
   }
 
   /**
-   * 🔄 UPDATE - Vòng lặp chính cho người chơi (Client-Side Prediction)
+   * 🔄 UPDATE - Logic mới với tính năng nắm và thoát
    */
   public update(): void {
-    if (!this.sprite || !this.sprite.body) return;
+    if (!this.sprite || !this.sprite.body || this.isDead || !this.playerState) return;
 
-    const inputState = this.inputManager.update();
+    // THÊM MỚI: KIỂM TRA RƠI KHỎI MAP
+    const worldHeight = this.scene.physics.world.bounds.height;
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
 
-    // 1. Client-Side Prediction: Áp dụng vật lý ngay lập tức
-    if (inputState.left) {
-      body.setVelocityX(-this.config.physics.speed);
-    } else if (inputState.right) {
-      body.setVelocityX(this.config.physics.speed);
+    if (this.sprite.y >= worldHeight - 60) {
+      this.isDead = true;
+      console.log(
+        `💀 Player has fallen to the bottom danger zone at Y: ${this.sprite.y} (world height: ${worldHeight}). Triggering respawn.`
+      );
+      // THÊM MỚI: Bỏ nắm khi chết
+      this.scene.handlePlayerDeath();
+      this.scene.handlePlayerFall();
+      return;
+    }
+
+    const inputState = this.inputManager.update();
+
+    // =======================================================
+    // === LOGIC MỚI: PHÂN TÁCH DỰA TRÊN TRẠNG THÁI isGrabbed ===
+    // =======================================================
+
+    if (this.playerState.isGrabbed && this.targetPosition) {
+      // ----- LOGIC KHI BỊ NẮM (ĐÃ CÓ NỘI SUY) -----
+      
+      // 1. TỰ LÀM MƯỢT chuyển động về phía vị trí server yêu cầu
+      this.sprite.x = Phaser.Math.Linear(this.sprite.x, this.targetPosition.x, this.LERP_FACTOR);
+      this.sprite.y = Phaser.Math.Linear(this.sprite.y, this.targetPosition.y, this.LERP_FACTOR);
+
+      // 2. Vô hiệu hóa vật lý để không bị trôi đi
+      body.setVelocity(0, 0);
+
+      // 3. Xử lý animation "vùng vẫy"
+      // Client có quyền quyết định animation vùng vẫy của chính mình
+      const isTryingToMove = inputState.left || inputState.right;
+      if (isTryingToMove) {
+          this.animationManager.playAnimation("walk");
+          this.sprite.setFlipX(inputState.left);
+      } else {
+          // Nếu không vùng vẫy, thì dùng animation từ server (do người nắm quyết định)
+          this.animationManager.playAnimation(this.playerState.animState as AnimationState);
+          this.sprite.setFlipX(this.playerState.flipX);
+      }
+
+      // 3. Xử lý "nỗ lực thoát" (struggle)
+      const isStruggling = inputState.left || inputState.right || inputState.jump;
+      if (isStruggling && this.scene.time.now > this.struggleCooldown) {
+        this.networkManager.room?.send("struggle");
+        this.struggleCooldown = this.scene.time.now + 100; // Cooldown 100ms
+      }
+
+    } else if (this.playerState.isGrabbing) {
+      // ----- LOGIC KHI ĐANG NẮM AI ĐÓ -----
+      
+      // Di chuyển chậm hơn khi đang nắm người khác
+      const grabSpeed = this.config.physics.speed * 0.7; // Chậm hơn 30%
+      
+      if (inputState.left) {
+        body.setVelocityX(-grabSpeed);
+      } else if (inputState.right) {
+        body.setVelocityX(grabSpeed);
+      } else {
+        body.setVelocityX(0);
+      }
+
+      // Không thể nhảy khi đang nắm người khác
+      if (inputState.jump && body.blocked.down) {
+        // Có thể thêm sound effect "can't jump" ở đây
+        console.log("Cannot jump while grabbing someone!");
+      }
+      
+      // Cập nhật animation dựa trên velocity
+      this.animationManager.updateAnimation(body.velocity, body.blocked.down);
+      
     } else {
-      body.setVelocityX(0);
+      // ----- LOGIC DI CHUYỂN BÌNH THƯỜNG -----
+      
+      if (inputState.left) {
+        body.setVelocityX(-this.config.physics.speed);
+      } else if (inputState.right) {
+        body.setVelocityX(this.config.physics.speed);
+      } else {
+        body.setVelocityX(0);
+      }
+
+      if (inputState.jump && body.blocked.down) {
+        body.setVelocityY(-this.config.physics.jumpPower);
+        this.scene.sound.play("jump");
+      }
+      
+      // Cập nhật animation dựa trên velocity
+      this.animationManager.updateAnimation(body.velocity, body.blocked.down);
     }
 
-    if (inputState.jump && body.blocked.down) {
-      body.setVelocityY(-this.config.physics.jumpPower);
-      this.scene.sound.play("jump");
+    // ----- LOGIC CHUNG CHO CẢ HAI TRẠNG THÁI -----
+
+    // 4. Xử lý hành động "nắm" hoặc "bỏ nắm"
+    if (this.inputManager.isJustPressed('grab')) {
+       if (this.playerState.isGrabbing) {
+           // Nếu đang nắm ai đó -> bỏ nắm
+           console.log(`[Client] Requesting to release grab`);
+           this.networkManager.room?.send("requestGrab", { targetSessionId: this.playerState.isGrabbing });
+       } else {
+           // Nếu không nắm ai -> tìm người để nắm
+           const closestRemotePlayer = this.scene.findClosestRemotePlayer(this.sprite.x, this.sprite.y, this.GRAB_DISTANCE_THRESHOLD);
+           if (closestRemotePlayer) {
+               console.log(`[Client] Requesting to grab ${closestRemotePlayer.sessionId}`);
+               this.networkManager.room?.send("requestGrab", { targetSessionId: closestRemotePlayer.sessionId });
+           }
+       }
     }
-
-    // 2. Cập nhật animation dựa trên kết quả dự đoán
-    this.animationManager.updateAnimation(body.velocity, body.blocked.down);
-
-    // 3. Gửi trạng thái lên server
+    
+    // 5. Gửi trạng thái lên server (giữ nguyên)
+    // QUAN TRỌNG: Vẫn gửi update vị trí, vì khi bị nắm, server sẽ ghi đè lên vị trí này.
+    // Điều này đảm bảo khi được thả ra, vị trí của bạn là chính xác.
     const currentState = {
       x: Math.round(this.sprite.x),
       y: Math.round(this.sprite.y),
@@ -216,8 +372,12 @@ export class Player {
       this.lastSentState = currentState;
     }
 
-    // 4. Cập nhật camera
+    // 6. Cập nhật camera và name tag (giữ nguyên)
     this.cameraManager.update();
+    if (this.nameTag) {
+      this.nameTag.x = this.sprite.x;
+      this.nameTag.y = this.sprite.y - 60;
+    }
   }
 
   public getSprite(): Phaser.Physics.Arcade.Sprite {
@@ -228,7 +388,18 @@ export class Player {
     return { x: this.sprite.x, y: this.sprite.y };
   }
 
+  /**
+   * THÊM MỚI: Phương thức để hồi sinh player
+   */
+  public respawn(): void {
+    this.isDead = false;
+    // Có thể thêm các logic khác như reset trạng thái power-up ở đây
+    console.log("Player has been respawned.");
+  }
+
   public destroy(): void {
+    this.nameTag?.destroy(); // <-- THÊM MỚI
+
     this.animationManager?.destroy();
     this.sprite?.destroy();
   }

@@ -1,5 +1,6 @@
 import { Player, InputManager, CameraManager } from "../../classes";
 import { BasePlatformerScene } from "./BasePlatformerScene";
+import { PlatformerLogicCore } from "./PlatformerLogicCore";
 
 /**
  * 👤 PLATFORMER PLAYER HANDLER - Chuyên gia về Người chơi
@@ -19,6 +20,14 @@ import { BasePlatformerScene } from "./BasePlatformerScene";
  */
 export class PlatformerPlayerHandler {
   private scene: BasePlatformerScene;
+
+  // === SINKING SAND STATE ===
+  // Trạng thái cho cơ chế cát lún
+  private onSinkingSandThisFrame: boolean = false;
+  private sinkingSandTimer: number = 0; // ms đã đứng trên cát
+  private readonly SINK_TIME_LIMIT: number = 100; // 2 giây
+  private readonly SINK_SPEED: number = 1; // px/giây
+  private platformsLayerRef?: Phaser.Tilemaps.TilemapLayer; // tham chiếu layer để quy đổi toạ độ
 
   constructor(scene: BasePlatformerScene) {
     this.scene = scene;
@@ -46,12 +55,13 @@ export class PlatformerPlayerHandler {
     platformsLayer: Phaser.Tilemaps.TilemapLayer,
     inputManager: InputManager,
     cameraManager: CameraManager,
-    logicCore: any,
+    logicCore: PlatformerLogicCore,
     networkManager: any // NetworkManager được thêm vào
   ): Player {
-    console.log(
-      `🏃 PlatformerPlayerHandler: Spawning player at (${spawnPoint.x}, ${spawnPoint.y})`
-    );
+    console.log(`🏃 PlatformerPlayerHandler: Spawning player...`);
+
+    // THÊM MỚI: Lấy username từ scene
+    const username = this.scene.getUserDisplayName();
 
     // 1. Tạo Player instance với configuration từ scene
     const player = new Player(
@@ -60,6 +70,7 @@ export class PlatformerPlayerHandler {
         x: spawnPoint.x,
         y: spawnPoint.y,
         texture: "spritesheet-characters-default",
+        username: username, // <-- SỬA ĐỔI: Truyền username vào
         characterData: this.scene.getCharacterData(), // Lấy config từ scene
         physics: this.scene.getPlayerPhysicsConfig(), // Lấy physics config từ scene
       },
@@ -68,61 +79,117 @@ export class PlatformerPlayerHandler {
       networkManager // Truyền NetworkManager
     );
 
-    // 2. Setup collision với platforms
-    this.setupPlatformCollision(player, platformsLayer);
+    // 2. Thiết lập tất cả tương tác với tiles (collider + overlap)
+    this.setupPlayerTileInteractions(player, platformsLayer, logicCore);
 
-    // 3. Setup overlap để detect collectibles và tiles
-    this.setupTileOverlap(player, platformsLayer, logicCore);
-
-    console.log("✅ Player spawned and configured successfully");
+    console.log(`✅ Player "${username}" spawned and configured successfully`);
     return player;
   }
 
   /**
-   * 🏗️ SETUP PLATFORM COLLISION - Thiết lập va chạm với platforms
+   * 🎮 SETUP PLAYER TILE INTERACTIONS - Gom tất cả logic collider/overlap vào một nơi
    *
-   * @param player Player instance
-   * @param platformsLayer Layer chứa platforms
+   * Luồng:
+   * 1) Chỉ bật collision cho tile có properties { collides: true }
+   * 2) Thêm collider để người chơi đứng trên nền đất/platforms
+   * 3) Thêm overlap để phát hiện hazard/collectible… mà không tạo va chạm vật lý
    */
-  private setupPlatformCollision(
-    player: Player,
-    platformsLayer: Phaser.Tilemaps.TilemapLayer
-  ): void {
-    // Setup collision để player không đi xuyên qua platforms
-    this.scene.physics.add.collider(player.getSprite(), platformsLayer);
-
-    console.log("🏗️ Platform collision setup completed");
-  }
-
-  /**
-   * 💰 SETUP TILE OVERLAP - Thiết lập overlap để detect collectibles
-   *
-   * @param player Player instance
-   * @param platformsLayer Layer chứa tiles có thể tương tác
-   * @param logicCore Core logic để xử lý interactions
-   */
-  private setupTileOverlap(
+  private setupPlayerTileInteractions(
     player: Player,
     platformsLayer: Phaser.Tilemaps.TilemapLayer,
-    logicCore: any
+    logicCore: PlatformerLogicCore
   ): void {
-    // Setup overlap để detect coins, power-ups, traps qua tile properties
+    // 1) Chỉ định rõ tile nào là vật cản vật lý
+    platformsLayer.setCollisionByProperty({ collides: true });
+    console.log(
+      "🏗️ Platform collision configured for tiles with 'collides: true'"
+    );
+
+    // Lưu lại tham chiếu layer để dùng trong process callback
+    this.platformsLayerRef = platformsLayer;
+
+    // 2) Collider CHUNG: chặn va chạm với nền đất cứng, LOẠI TRỪ cát lún
+    this.scene.physics.add.collider(
+      player.getSprite(),
+      platformsLayer,
+      // CollideCallback: xử lý các va chạm đặc biệt (vd: disappearing khi đứng lên)
+      (sprite: any, tile: any) => {
+        const platformTile = tile as Phaser.Tilemaps.Tile;
+        const body = (sprite as Phaser.Physics.Arcade.Sprite)
+          .body as Phaser.Physics.Arcade.Body;
+        if (
+          platformTile.properties.type === "disappearing" &&
+          body.blocked.down
+        ) {
+          this.scene.handlePlayerOnPlatformTile(platformTile);
+        }
+      },
+      // ProcessCallback: bỏ qua cát lún để collider này không xử lý nó
+      (sprite: any, tile: any) => {
+        const platformTile = tile as Phaser.Tilemaps.Tile;
+        return platformTile.properties.platformType !== "sinkingSand";
+      },
+      this
+    );
+
+    // 2b) Collider RIÊNG: chỉ dành cho cát lún, dùng processCallback để điều khiển va chạm động
+    this.scene.physics.add.collider(
+      player.getSprite(),
+      platformsLayer,
+      undefined,
+      this.processSinkingSandCollision,
+      this
+    );
+
+    // 3) Overlap: phát hiện chạm vào các tile có thuộc tính đặc biệt (hazard/collectible…)
     this.scene.physics.add.overlap(
       player.getSprite(),
       platformsLayer,
-      (sprite, tile) => {
-        // Ủy quyền xử lý cho LogicCore (stateless approach)
-        logicCore.handleTileOverlap(
-          tile as Phaser.Tilemaps.Tile,
-          platformsLayer,
-          this.scene // Scene được truyền như tham số tạm thời
-        );
-      },
-      undefined,
-      this.scene
+      this.createTileOverlapHandler(logicCore, platformsLayer),
+      this.shouldProcessOverlap,
+      this
     );
+    console.log(
+      "🎯 Overlap detection enabled for interactive tiles (hazards, collectibles, etc.)"
+    );
+  }
 
-    console.log("💰 Tile overlap detection setup completed");
+  // Chỉ xử lý overlap nếu tile có properties
+  private shouldProcessOverlap = (sprite: any, tile: any): boolean => {
+    return tile && tile.properties && Object.keys(tile.properties).length > 0;
+  };
+
+  // Tạo handler có đóng gói tham chiếu logicCore + platformsLayer
+  private createTileOverlapHandler(
+    logicCore: PlatformerLogicCore,
+    platformsLayer: Phaser.Tilemaps.TilemapLayer
+  ) {
+    return (sprite: any, tile: any): void => {
+      const platformTile = tile as Phaser.Tilemaps.Tile;
+
+      // A) Hazard: chết ngay khi chạm
+      if (platformTile.properties.hazard === true) {
+        (this.scene as BasePlatformerScene).handlePlayerDeathByHazard(
+          platformTile
+        );
+        return;
+      }
+
+      // B) Disappearing block: chỉ xử lý khi đang đứng trên tile
+      const body = (sprite as Phaser.Physics.Arcade.Sprite)
+        .body as Phaser.Physics.Arcade.Body;
+      if (
+        platformTile.properties.type === "disappearing" &&
+        body.blocked.down
+      ) {
+        this.scene.handlePlayerOnPlatformTile(platformTile);
+      }
+
+      // C) Collectible: ủy quyền cho LogicCore
+      if (platformTile.properties.type === "collectible") {
+        logicCore.handleTileOverlap(platformTile, platformsLayer, this.scene);
+      }
+    };
   }
 
   /**
@@ -212,8 +279,6 @@ export class PlatformerPlayerHandler {
   /**
    * 🎯 TELEPORT PLAYER - Dịch chuyển player đến vị trí mới
    *
-   * Hữu ích cho checkpoint system hoặc special events.
-   *
    * @param player Player instance
    * @param newPosition Vị trí mới
    */
@@ -232,24 +297,82 @@ export class PlatformerPlayerHandler {
   }
 
   /**
-   * 💀 RESPAWN PLAYER - Hồi sinh player tại spawn point
+   * 💀 RESPAWN PLAYER - Hồi sinh player tại một vị trí cụ thể
    *
    * @param player Player instance
-   * @param spawnPoint Vị trí spawn
+   * @param respawnPosition Vị trí để hồi sinh
    */
   public respawnPlayer(
     player: Player,
-    spawnPoint: { x: number; y: number }
+    respawnPosition: { x: number; y: number }
   ): void {
-    console.log("💀 Respawning player...");
+    console.log(
+      `💀 Respawning player at (${respawnPosition.x}, ${respawnPosition.y})...`
+    );
 
-    // Teleport về spawn point
-    this.teleportPlayer(player, spawnPoint);
+    // 1. Dịch chuyển player về vị trí hồi sinh
+    this.teleportPlayer(player, respawnPosition);
 
-    // Reset any status effects hoặc state nếu cần
-    // player.resetState(); // Implement trong Player class nếu cần
+    // 2. Gọi hàm respawn nội bộ của Player để reset cờ isDead
+    player.respawn();
 
     console.log("✅ Player respawned successfully");
+  }
+
+  // === SINKING SAND LOGIC ===
+  // Xử lý va chạm với cát lún theo từng frame
+  private processSinkingSandCollision = (sprite: any, tile: any): boolean => {
+    const playerSprite = sprite as Phaser.Physics.Arcade.Sprite;
+    const sandTile = tile as Phaser.Tilemaps.Tile;
+    if (!sandTile || !sandTile.properties) return false;
+
+    // Chỉ xử lý nếu là cát lún
+    if (sandTile.properties.platformType !== "sinkingSand") {
+      return false;
+    }
+
+    const body = playerSprite.body as Phaser.Physics.Arcade.Body;
+
+    // Chỉ xử lý khi người chơi ở phía trên và đang rơi/xuống
+    const layer = this.platformsLayerRef;
+    const tileTop = layer
+      ? layer.tileToWorldY(sandTile.y)
+      : (sandTile as any).pixelY ?? 0; // world top của tile
+    const tolerance = 8; // nới biên để tránh lọt qua khi tiếp đất nhanh
+    const isPlayerAbove = body.bottom <= tileTop + tolerance;
+    const isPlayerFalling = body.velocity.y >= 0;
+
+    if (!isPlayerAbove || !isPlayerFalling) {
+      // Cho phép đi xuyên nếu đi ngang hoặc nhảy từ dưới lên
+      return false;
+    }
+
+    // Đánh dấu đang ở trên cát trong frame này
+    this.onSinkingSandThisFrame = true;
+
+    // Cập nhật timer theo delta time
+    const dt = this.scene.game.loop.delta; // ms
+    this.sinkingSandTimer += dt;
+
+    if (this.sinkingSandTimer < this.SINK_TIME_LIMIT) {
+      // Trong 2 giây đầu: giữ va chạm và cho lún dần
+      const sinkDelta = this.SINK_SPEED * (dt / 1000);
+      playerSprite.y += sinkDelta;
+      return true; // Cho phép va chạm để đứng trên bề mặt cát
+    }
+
+    // Hết thời gian: tắt va chạm để rơi xuyên qua
+    return false;
+  };
+
+  // Gọi mỗi frame từ Scene.update(): reset cờ/timer khi rời cát
+  public update(): void {
+    if (!this.onSinkingSandThisFrame) {
+      // Không còn ở trên cát: reset bộ đếm
+      this.sinkingSandTimer = 0;
+    }
+    // Reset cờ cho frame kế tiếp
+    this.onSinkingSandThisFrame = false;
   }
 
   /**

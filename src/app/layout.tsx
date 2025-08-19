@@ -3,8 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./fonts.css";
 import { ThemeProvider } from "@/components/features/shared/theme-provider";
-import { Toaster } from "sonner";
 import MockInit from "@/components/features/shared/mock-init";
+import { ToasterProvider } from "@/components/features/shared/toaster-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,7 +50,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <Toaster position="top-right" richColors closeButton />
+          <ToasterProvider />
           <MockInit>{children}</MockInit>
         </ThemeProvider>
       </body>

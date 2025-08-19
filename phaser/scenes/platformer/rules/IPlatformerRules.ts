@@ -37,6 +37,16 @@ export interface IPlatformerRules {
   ): void;
 
   /**
+   * THÊM MỚI: Xử lý logic khi va chạm với một tile nguy hiểm (gai, lửa, v.v.).
+   * @param tile Tile nguy hiểm.
+   * @param scene Tham chiếu đến scene để có thể gọi âm thanh và effects.
+   */
+  handleHazardCollision(
+    tile: Phaser.Tilemaps.Tile,
+    scene: BasePlatformerScene
+  ): void;
+
+  /**
    * Dọn dẹp bất kỳ listener hoặc timer nào đã được tạo ra trong initialize.
    */
   cleanup(): void;

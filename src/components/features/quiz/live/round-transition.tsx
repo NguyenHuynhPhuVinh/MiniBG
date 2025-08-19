@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Target } from "lucide-react";
+import { Target, Coins } from "lucide-react";
 import { QuizRound } from "@/lib/types/quiz";
 
 interface RoundTransitionProps {
@@ -13,6 +13,8 @@ interface RoundTransitionProps {
     correct: number;
     incorrect: number;
   };
+  // Tổng điểm của cả vòng (nếu có, hiển thị UI điểm thay cho thông tin vòng)
+  roundTotalScore?: number;
   onComplete: () => void;
 }
 
@@ -22,6 +24,7 @@ export const RoundTransition: React.FC<RoundTransitionProps> = ({
   roundConfig,
   questionsInRound,
   previousRoundStats,
+  roundTotalScore,
   onComplete,
 }) => {
   const [, setProgress] = useState(0);
@@ -131,22 +134,41 @@ export const RoundTransition: React.FC<RoundTransitionProps> = ({
               </motion.div>
             )}
 
-            {/* Next Round Info */}
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.6, duration: 0.5 }}
-              className="text-center p-6 rounded-2xl border bg-primary/5 mb-6"
-            >
-              <div className="text-lg font-semibold text-foreground mb-2">
-                {roundConfig.name}
-              </div>
-              <div className="flex items-center justify-center gap-4 text-sm">
-                <span className="text-primary font-medium">
-                  {questionsInRound} câu hỏi
-                </span>
-              </div>
-            </motion.div>
+            {/* Next Round Info OR Round Total Score (if provided) */}
+            {typeof roundTotalScore === "number" ? (
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.6, duration: 0.5 }}
+                className="text-center p-6 rounded-2xl border bg-yellow-50 mb-6"
+              >
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  <Coins className="h-5 w-5 text-yellow-500" />
+                  <div className="text-lg font-semibold text-foreground">
+                    Tổng điểm
+                  </div>
+                </div>
+                <div className="text-3xl font-extrabold text-yellow-600">
+                  {roundTotalScore}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.6, duration: 0.5 }}
+                className="text-center p-6 rounded-2xl border bg-primary/5 mb-6"
+              >
+                <div className="text-lg font-semibold text-foreground mb-2">
+                  {roundConfig.name}
+                </div>
+                <div className="flex items-center justify-center gap-4 text-sm">
+                  <span className="text-primary font-medium">
+                    {questionsInRound} câu hỏi
+                  </span>
+                </div>
+              </motion.div>
+            )}
           </div>
         </motion.div>
       </motion.div>

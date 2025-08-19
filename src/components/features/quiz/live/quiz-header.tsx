@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Clock, Award, Trophy, Target } from "lucide-react";
+import { Clock, Award, Trophy, Target, Coins } from "lucide-react";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { cn } from "@/lib/utils";
 import { QuizRound } from "@/lib/types/quiz";
@@ -9,7 +9,8 @@ import { QuizRound } from "@/lib/types/quiz";
 interface QuizHeaderProps {
   currentQuestionIndex: number;
   totalQuestions: number;
-  currentScore: number;
+  currentScore: number; // Sẽ đại diện cho SỐ CÂU ĐÚNG trong vòng quiz
+  totalGameScore?: number; // THÊM MỚI: Điểm tổng của cả game
   totalQuestionsOverall?: number; // Tổng số câu hỏi của toàn bộ quiz
   quizTimeLeft: number;
   onPrevQuestion: () => void;
@@ -32,7 +33,8 @@ interface QuizHeaderProps {
 export const QuizHeader: React.FC<QuizHeaderProps> = ({
   currentQuestionIndex,
   totalQuestions,
-  currentScore,
+  currentScore, // Đây là số câu đúng
+  totalGameScore, // Đây là điểm tổng
   totalQuestionsOverall,
   quizTimeLeft,
   onPrevQuestion,
@@ -92,19 +94,22 @@ export const QuizHeader: React.FC<QuizHeaderProps> = ({
             )}
           </div>
         ) : (
-          // Game mode: UI đẹp hơn cho thông tin câu hỏi
+          // Game mode: UI đẹp hơn cho thông tin câu hỏi + điểm tổng
           <div className="flex items-center gap-4 flex-1">
-            {/* Question progress với style giống timer */}
-            <div
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-lg border-2",
-                "bg-gradient-to-r from-gray-50 to-blue-50 border-gray-300 shadow-sm"
-              )}
-            >
-              <div className="font-bold text-sm text-gray-700">
-                Câu {currentQuestionIndex + 1}/{totalQuestions}
+            {/* Hiển thị điểm TỔNG CỘNG */}
+            {totalGameScore !== undefined && (
+              <div
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-lg border-2",
+                  "bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 shadow-sm"
+                )}
+              >
+                <Coins className="h-4 w-4 text-yellow-500" />
+                <span className="font-bold text-sm text-yellow-700">
+                  Tổng Điểm: {totalGameScore}
+                </span>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -171,40 +176,17 @@ export const QuizHeader: React.FC<QuizHeaderProps> = ({
             </div>
           )}
 
-          {/* Score - Cải thiện hiển thị */}
+          {/* Score - Sửa lại để hiển thị Số Câu Đúng */}
           <div
             className={cn(
               "flex items-center gap-2 px-3 py-1.5 rounded-lg border-2",
-              currentScore < (totalQuestionsOverall || totalQuestions) * 0.4
-                ? "bg-red-50 border-red-300"
-                : currentScore < (totalQuestionsOverall || totalQuestions) * 0.7
-                ? "bg-orange-50 border-orange-300"
-                : "bg-green-50 border-green-300"
+              "bg-green-50 border-green-300"
             )}
           >
-            <Award
-              className={cn(
-                "h-4 w-4",
-                currentScore < (totalQuestionsOverall || totalQuestions) * 0.4
-                  ? "text-red-500"
-                  : currentScore <
-                    (totalQuestionsOverall || totalQuestions) * 0.7
-                  ? "text-orange-500"
-                  : "text-green-500"
-              )}
-            />
-            <span
-              className={cn(
-                "font-bold text-sm",
-                currentScore < (totalQuestionsOverall || totalQuestions) * 0.4
-                  ? "text-red-700"
-                  : currentScore <
-                    (totalQuestionsOverall || totalQuestions) * 0.7
-                  ? "text-orange-700"
-                  : "text-green-700"
-              )}
-            >
-              {currentScore}/{totalQuestionsOverall || totalQuestions}
+            <Award className="h-4 w-4 text-green-500" />
+            <span className="font-bold text-sm text-green-700">
+              {/* `currentScore` giờ là số câu đúng */}
+              Đúng: {currentScore}/{totalQuestions}
             </span>
           </div>
 

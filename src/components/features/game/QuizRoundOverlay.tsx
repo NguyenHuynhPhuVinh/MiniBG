@@ -1,14 +1,18 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Check, X, Clock, Award } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { quizService } from "@/lib/services/api";
 import { toast } from "sonner";
 import { Question, Answer, QuizRound } from "@/lib/types/quiz";
 import { QuizHeader } from "@/components/features/quiz/live/quiz-header";
 import { QuizQuestionDisplay } from "@/components/features/quiz/live/quiz-question-display";
 import { RoundTransition } from "@/components/features/quiz/live/round-transition";
+import { EventBus } from "../../../../phaser/EventBus";
+import { MinigameCore } from "../../../../phaser/classes";
+
+// Giả định mỗi câu trả lời đúng được cộng 100 điểm vào điểm tổng
+const SCORE_PER_CORRECT_ANSWER = 100;
+// Điểm bị trừ khi trả lời sai ở vòng 5
+const SCORE_PENALTY_ROUND_5 = 50;
 
 interface QuizRoundOverlayProps {
   isVisible: boolean;
@@ -18,7 +22,8 @@ interface QuizRoundOverlayProps {
   quizId: number;
   userId: number | string;
   onComplete: (
-    score: number,
+    // onComplete chỉ cần báo cáo số câu đúng, vì điểm tổng đã ở trong MinigameCore
+    correctAnswersCount: number,
     totalQuestions: number,
     wrongQuestions?: Question[]
   ) => void;
@@ -47,18 +52,22 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
   userPosition,
   totalParticipants,
 }) => {
+  // === TÁCH BIỆT STATE ĐIỂM SỐ ===
+  const [totalGameScore, setTotalGameScore] = useState(0); // Điểm tổng, lắng nghe từ MinigameCore
+  const [correctAnswersCount, setCorrectAnswersCount] = useState(0); // Đếm số câu đúng trong quiz
+
   // Quiz state
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [score, setScore] = useState(0);
+  const [score, setScore] = useState(0); // Deprecated - sẽ bằng correctAnswersCount
   const [showResult, setShowResult] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [wrongAnswers, setWrongAnswers] = useState<Question[]>([]);
   const wrongAnswersRef = useRef<Question[]>([]);
 
-  // Ref để track score real-time
+  // Ref để track score real-time (deprecated - dùng correctAnswersCount)
   const scoreRef = useRef(0);
   const initializedRef = useRef<string | null>(null);
   const completedRef = useRef(false); // Guard để tránh duplicate onComplete calls
@@ -68,7 +77,42 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
   const [isTimeWarning, setIsTimeWarning] = useState(false);
   const [startTime] = useState<number>(Date.now());
 
-  // Initialize quiz khi component mount
+  // Lắng nghe và khởi tạo điểm từ MinigameCore
+  useEffect(() => {
+    if (isVisible) {
+      // Khởi tạo điểm tổng từ MinigameCore
+      const initialScore = MinigameCore.getInstance().getCurrentScore();
+      setTotalGameScore(initialScore);
+
+      // Reset các state của vòng quiz
+      setCorrectAnswersCount(0);
+      setCurrentQuestionIndex(0);
+      setSelectedAnswer(null);
+      setIsAnswered(false);
+      setShowResult(false);
+      setScore(0); // Sync với correctAnswersCount
+      setIsCompleted(false);
+      setTimeLeft(timeLimit);
+      completedRef.current = false;
+
+      // Lắng nghe sự kiện cập nhật điểm TỔNG
+      const handleScoreUpdate = (data: { newScore: number }) => {
+        setTotalGameScore(data.newScore);
+      };
+      EventBus.on("minigame-score-updated", handleScoreUpdate);
+
+      console.log(
+        `🔄 Initializing Round ${roundNumber}: totalGameScore=${initialScore}, correctAnswersCount=0`
+      );
+
+      // Dọn dẹp
+      return () => {
+        EventBus.removeListener("minigame-score-updated", handleScoreUpdate);
+      };
+    }
+  }, [isVisible, roundNumber, questions, timeLimit]);
+
+  // Initialize quiz khi component mount (bổ sung cho compatibility)
   useEffect(() => {
     if (isVisible && questions.length > 0) {
       // Tránh re-initialize nếu đã init cho round này
@@ -77,10 +121,6 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
         console.log(`⚠️ Round ${roundNumber} already initialized, skipping`);
         return;
       }
-
-      console.log(
-        `🔄 Initializing Round ${roundNumber}: ${questions.length} questions, resetting score to 0`
-      );
 
       if (isSpecialRound) {
         console.log(`🔍 Special Round 5 questions received:`);
@@ -91,15 +131,6 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
         );
         console.log(`   Questions:`, questions);
       }
-      setCurrentQuestionIndex(0);
-      setSelectedAnswer(null);
-      setIsAnswered(false);
-      setShowResult(false);
-      scoreRef.current = 0; // Reset score ref trước
-      setScore(0);
-      setIsCompleted(false);
-      setTimeLeft(timeLimit);
-      completedRef.current = false; // Reset completion guard
 
       // KHÔNG reset wrongAnswersRef để persist qua các round
       // wrongAnswersRef sẽ accumulate tất cả câu sai từ round 1-4
@@ -113,7 +144,7 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
 
       initializedRef.current = roundKey;
     }
-  }, [isVisible, roundNumber, questions, timeLimit]);
+  }, [isVisible, roundNumber, questions]);
 
   // Timer countdown
   useEffect(() => {
@@ -154,56 +185,89 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
     completedRef.current = true;
     setIsCompleted(true);
     setTimeout(() => {
-      // Sử dụng scoreRef khi timeout
-      onComplete(scoreRef.current, questions.length);
+      // Báo cáo số câu đúng khi timeout
+      onComplete(correctAnswersCount, questions.length);
     }, 1500);
   };
 
   // Xử lý khi chọn đáp án
-  const handleAnswerSelect = async (answerId: number) => {
+  const handleAnswerSelect = async (
+    selectedAnswer: number | null,
+    isCorrect: boolean
+  ) => {
+    // Xử lý tương tự như handleAnswerSelect nhưng với interface mới
     if (isAnswered) return;
 
     console.log(
-      `🔍 Answer select: questionIndex=${currentQuestionIndex}, answerId=${answerId}, currentScore=${scoreRef.current}`
+      `🔍 Answer select via QuizQuestionDisplay: questionIndex=${currentQuestionIndex}, answerId=${selectedAnswer}, correctAnswersCount=${correctAnswersCount}, totalGameScore=${totalGameScore}`
     );
 
-    const currentQuestion = questions[currentQuestionIndex];
-    if (!currentQuestion) return;
-
-    // Tìm đáp án được chọn
-    const selectedAnswerObj = currentQuestion.answers.find(
-      (a) => a.answer_id === answerId
-    );
-    if (!selectedAnswerObj) return;
-
-    const correct = selectedAnswerObj.iscorrect;
-
-    setSelectedAnswer(answerId);
+    setSelectedAnswer(selectedAnswer);
     setIsAnswered(true);
-    setIsCorrect(correct);
+    setIsCorrect(isCorrect);
     setShowResult(true);
 
-    if (correct) {
-      const oldScore = scoreRef.current;
-      scoreRef.current += 1; // Update ref trước
-      setScore(scoreRef.current); // Update state để trigger re-render
-      console.log(`✅ Score updated: ${oldScore} → ${scoreRef.current}`);
+    if (isCorrect) {
+      // 1. Luôn cập nhật số câu đúng (cho UI góc phải)
+      const newCorrectCount = correctAnswersCount + 1;
+      setCorrectAnswersCount(newCorrectCount);
+      setScore(newCorrectCount); // Sync backward compatibility
+
+      // 2. Chỉ cộng điểm vào ĐIỂM TỔNG nếu KHÔNG PHẢI vòng 5
+      if (roundNumber !== 5) {
+        MinigameCore.getInstance().addScore(SCORE_PER_CORRECT_ANSWER);
+        console.log(
+          `✅ Correct answer (Round ${roundNumber}): correctAnswersCount=${correctAnswersCount} → ${newCorrectCount}, adding ${SCORE_PER_CORRECT_ANSWER} to totalGameScore`
+        );
+      } else {
+        console.log(
+          `✅ Correct answer (Round 5): correctAnswersCount=${correctAnswersCount} → ${newCorrectCount}, NO SCORE ADDED (special round)`
+        );
+      }
     } else {
-      console.log(`❌ Wrong answer, score remains: ${scoreRef.current}`);
+      // VÒNG 5: Trả lời sai sẽ bị TRỪ điểm
+      if (roundNumber === 5) {
+        MinigameCore.getInstance().subtractScore(SCORE_PENALTY_ROUND_5);
+        toast.error(`Trả lời sai! Bị trừ ${SCORE_PENALTY_ROUND_5} điểm`);
+        console.log(
+          `❌ Wrong answer (Round 5): correctAnswersCount remains ${correctAnswersCount}, PENALTY: -${SCORE_PENALTY_ROUND_5} points`
+        );
+      } else {
+        console.log(
+          `❌ Wrong answer (Round ${roundNumber}): correctAnswersCount remains ${correctAnswersCount}, no penalty`
+        );
+      }
+
+      // Track câu sai cho vòng 5 (chỉ track khi không phải vòng đặc biệt)
+      if (!isSpecialRound) {
+        const currentQuestion = questions[currentQuestionIndex];
+        if (
+          currentQuestion &&
+          !wrongAnswersRef.current.find(
+            (q) => q.question_id === currentQuestion.question_id
+          )
+        ) {
+          console.log(
+            `📝 Adding wrong question to Round 5: ${currentQuestion.question_id}`
+          );
+          wrongAnswersRef.current = [
+            ...wrongAnswersRef.current,
+            currentQuestion,
+          ];
+          setWrongAnswers(wrongAnswersRef.current);
+          console.log(`📝 Updated wrongAnswersRef:`, wrongAnswersRef.current);
+        }
+      }
     }
 
-    try {
-      // Gửi đáp án lên backend
-      await quizService.submitRealtimeAnswer(
-        quizId,
-        currentQuestion.question_id,
-        answerId,
-        startTime,
-        userId,
-        false // Không hiển thị leaderboard trong round mode
-      );
-    } catch (error) {
-      toast.error("Không thể gửi đáp án");
+    // Cập nhật vị trí bảng xếp hạng
+    if (updateUserPosition) {
+      try {
+        await updateUserPosition();
+        console.log("🏆 User position updated after answer");
+      } catch (error) {
+        console.error("❌ Failed to update user position:", error);
+      }
     }
 
     // Auto chuyển câu sau 2 giây
@@ -221,7 +285,7 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
       setShowResult(false);
       setIsCorrect(false);
     } else {
-      // Hoàn thành round - tính score cuối cùng
+      // Hoàn thành round - báo cáo số câu đúng
       if (completedRef.current) {
         console.log(`⚠️ Round completion ignored - already completed`);
         return;
@@ -229,14 +293,18 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
       completedRef.current = true;
       setIsCompleted(true);
       setTimeout(() => {
-        // Sử dụng scoreRef để có score chính xác
-        const finalScore = scoreRef.current;
+        // Báo cáo số câu đúng
+        const finalCorrectCount = correctAnswersCount;
         console.log(
-          `🎯 Round ${roundNumber} Final Score: ${finalScore}/${questions.length} (scoreRef: ${scoreRef.current}, state: ${score})`
+          `🎯 Round ${roundNumber} Final: ${finalCorrectCount}/${questions.length} correct answers`
         );
 
         // Gọi onComplete và để QuizGameWrapper quyết định làm gì tiếp theo
-        onComplete(finalScore, questions.length, wrongAnswersRef.current);
+        onComplete(
+          finalCorrectCount,
+          questions.length,
+          wrongAnswersRef.current
+        );
       }, 1500);
     }
   };
@@ -246,7 +314,9 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
 
   // Round completed state - Sử dụng RoundTransition component
   if (isCompleted) {
-    const percentage = Math.round((score / questions.length) * 100);
+    const percentage = Math.round(
+      (correctAnswersCount / questions.length) * 100
+    );
 
     return (
       <RoundTransition
@@ -262,9 +332,10 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
         questionsInRound={questions.length}
         previousRoundStats={{
           attempted: questions.length,
-          correct: score,
-          incorrect: questions.length - score,
+          correct: correctAnswersCount,
+          incorrect: questions.length - correctAnswersCount,
         }}
+        roundTotalScore={totalGameScore}
         onComplete={() => {
           // Callback này sẽ được gọi sau khi animation hoàn thành
           // Trigger onComplete của parent component
@@ -276,7 +347,7 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
           }
           completedRef.current = true;
           setTimeout(() => {
-            onComplete(scoreRef.current, questions.length);
+            onComplete(correctAnswersCount, questions.length);
           }, 500);
         }}
       />
@@ -291,10 +362,12 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
       <div className="min-h-full flex flex-col">
         {/* Tận dụng QuizHeader từ quiz-live system - Fixed header */}
         <div className="sticky top-0 z-10 bg-background border-b">
+          {/* TRUYỀN CẢ 2 GIÁ TRỊ ĐIỂM VÀO HEADER */}
           <QuizHeader
             currentQuestionIndex={currentQuestionIndex}
             totalQuestions={questions.length}
-            currentScore={score}
+            currentScore={correctAnswersCount} // Điểm vòng quiz (số câu đúng)
+            totalGameScore={totalGameScore} // Điểm tổng của game
             totalQuestionsOverall={questions.length}
             quizTimeLeft={timeLeft}
             onPrevQuestion={() => {
@@ -348,69 +421,7 @@ export const QuizRoundOverlay: React.FC<QuizRoundOverlayProps> = ({
             currentRound={roundNumber}
             roundAnswered={isAnswered ? roundNumber : 0}
             onAnswer={async (selectedAnswer, isCorrect) => {
-              // Xử lý tương tự như handleAnswerSelect nhưng với interface mới
-              if (isAnswered) return;
-
-              console.log(
-                `🔍 Answer select via QuizQuestionDisplay: questionIndex=${currentQuestionIndex}, answerId=${selectedAnswer}, currentScore=${scoreRef.current}`
-              );
-
-              setSelectedAnswer(selectedAnswer);
-              setIsAnswered(true);
-              setIsCorrect(isCorrect);
-              setShowResult(true);
-
-              if (isCorrect) {
-                const oldScore = scoreRef.current;
-                scoreRef.current += 1;
-                setScore(scoreRef.current);
-                console.log(
-                  `✅ Score updated: ${oldScore} → ${scoreRef.current}`
-                );
-              } else {
-                console.log(
-                  `❌ Wrong answer, score remains: ${scoreRef.current}`
-                );
-
-                // Track câu sai cho vòng 5 (chỉ track khi không phải vòng đặc biệt)
-                if (!isSpecialRound) {
-                  const currentQuestion = questions[currentQuestionIndex];
-                  if (
-                    currentQuestion &&
-                    !wrongAnswersRef.current.find(
-                      (q) => q.question_id === currentQuestion.question_id
-                    )
-                  ) {
-                    console.log(
-                      `📝 Adding wrong question to Round 5: ${currentQuestion.question_id}`
-                    );
-                    wrongAnswersRef.current = [
-                      ...wrongAnswersRef.current,
-                      currentQuestion,
-                    ];
-                    setWrongAnswers(wrongAnswersRef.current);
-                    console.log(
-                      `📝 Updated wrongAnswersRef:`,
-                      wrongAnswersRef.current
-                    );
-                  }
-                }
-              }
-
-              // Cập nhật vị trí bảng xếp hạng
-              if (updateUserPosition) {
-                try {
-                  await updateUserPosition();
-                  console.log("🏆 User position updated after answer");
-                } catch (error) {
-                  console.error("❌ Failed to update user position:", error);
-                }
-              }
-
-              // Auto chuyển câu sau 2 giây
-              setTimeout(() => {
-                handleNextQuestion();
-              }, 2000);
+              await handleAnswerSelect(selectedAnswer, isCorrect);
             }}
           />
         </div>

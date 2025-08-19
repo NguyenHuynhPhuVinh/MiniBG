@@ -9,6 +9,7 @@ export interface InputState {
   up: boolean;      // ↑ hoặc W
   down: boolean;    // ↓ hoặc S
   jump: boolean;    // Space hoặc ↑ hoặc W
+  grab: boolean;    // E - Hành động nắm người chơi khác
 }
 
 /**
@@ -25,12 +26,14 @@ export class InputManager {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;    // Arrow keys
   private wasdKeys?: any;                                      // WASD keys
   private spaceKey?: Phaser.Input.Keyboard.Key;               // Space key
+  private grabKey?: Phaser.Input.Keyboard.Key;               // E key cho grab
   private inputState: InputState = {
     left: false,
     right: false,
     up: false,
     down: false,
-    jump: false
+    jump: false,
+    grab: false
   };
 
   constructor(scene: Scene) {
@@ -45,10 +48,11 @@ export class InputManager {
     // Arrow keys (←↑→↓)
     this.cursors = this.scene.input.keyboard?.createCursorKeys();
 
-    // WASD keys và Space key
+    // WASD keys, Space key và E key
     if (this.scene.input.keyboard) {
       this.wasdKeys = this.scene.input.keyboard.addKeys('W,S,A,D');
       this.spaceKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+      this.grabKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     }
   }
 
@@ -87,6 +91,11 @@ export class InputManager {
 
     // Up key cũng có thể dùng để jump (W hoặc ↑ hoặc Space)
     this.inputState.jump = this.inputState.jump || this.inputState.up;
+
+    // Đọc E key cho grab
+    if (this.grabKey) {
+      this.inputState.grab = this.grabKey.isDown;
+    }
 
     return { ...this.inputState };
   }
@@ -127,6 +136,9 @@ export class InputManager {
         return (this.cursors?.right.isDown && Phaser.Input.Keyboard.JustDown(this.cursors.right)) ||
                (this.wasdKeys?.D.isDown && Phaser.Input.Keyboard.JustDown(this.wasdKeys.D)) ||
                false;
+      case 'grab':
+        // E key cho grab
+        return (this.grabKey?.isDown && Phaser.Input.Keyboard.JustDown(this.grabKey)) || false;
       default:
         return false;
     }

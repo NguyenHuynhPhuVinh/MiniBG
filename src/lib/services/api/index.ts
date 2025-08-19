@@ -16,6 +16,7 @@ import poService from "./po.service";
 import ploService from "./plo.service";
 import courseService from "./course.service";
 import courseGradeService from "./course-grade.service";
+import practiceRecommendationService from "./practice-recommendation.service";
 
 export {
   api,
@@ -36,6 +37,7 @@ export {
   ploService,
   courseService,
   courseGradeService,
+  practiceRecommendationService,
 };
 
 export default api;

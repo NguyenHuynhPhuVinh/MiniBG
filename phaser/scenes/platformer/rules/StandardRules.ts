@@ -11,11 +11,16 @@ import { BasePlatformerScene } from "../BasePlatformerScene";
 export class StandardRules implements IPlatformerRules {
   private minigameCore!: MinigameCore;
   private scene!: BasePlatformerScene;
+  private startTime: number = 0;
 
   initialize(scene: BasePlatformerScene, minigameCore: MinigameCore): void {
     this.scene = scene;
     this.minigameCore = minigameCore;
-    console.log(`🎯 StandardRules: Initialized for ${scene.scene.key}`);
+    // Start the time trial when rules are initialized
+    this.startTime = scene.time.now;
+    console.log(
+      `🎯 StandardRules: Time trial started at ${this.startTime} for ${scene.scene.key}`
+    );
   }
 
   handleCollectible(
@@ -23,12 +28,9 @@ export class StandardRules implements IPlatformerRules {
     scene: BasePlatformerScene
   ): void {
     if (tile.properties?.name === "xu" || tile.properties?.type === "coin") {
-      // Âm thanh và hiệu ứng thuộc về ruleset, không phải LogicCore
+      // Coins are decorative in time-trial mode. Keep sound/FX only.
       scene.sound.play("coin");
-
-      const score = tile.properties?.value || 10;
-      this.minigameCore.addScore(score);
-      console.log(`💰 StandardRules: Collected coin (+${score} points)`);
+      console.log(`💰 StandardRules: Collected coin (decorative, no score)`);
     }
 
     // Xử lý các vật phẩm khác nếu cần
@@ -52,7 +54,7 @@ export class StandardRules implements IPlatformerRules {
       scene.sound.play("trap", { volume: 0.8 });
 
       const penalty = tile.properties?.penalty || 5;
-      this.minigameCore.addScore(-penalty);
+      this.minigameCore.subtractScore(penalty);
       console.log(`🕳️ StandardRules: Hit trap (-${penalty} points)`);
     }
   }
@@ -65,24 +67,47 @@ export class StandardRules implements IPlatformerRules {
     console.log(`🎮 StandardRules: Handling object "${objectName}"`);
 
     if (objectName.includes("finish") || objectName.includes("level_end")) {
-      // Âm thanh thành công thuộc về ruleset
-      scene.sound.play("success", { volume: 0.8 }); // Hoặc âm thanh phù hợp khác
+      // Compute elapsed time and convert to score (time trial)
+      const endTime = scene.time.now;
+      const elapsedSeconds = (endTime - this.startTime) / 1000;
 
-      const bonus = objectData.properties?.completionBonus || 50;
-      this.minigameCore.addScore(bonus);
-      console.log(`🏁 StandardRules: Level completed (+${bonus} bonus)`);
-      this.minigameCore.triggerQuiz();
-    } else if (objectName.includes("quiz")) {
-      console.log(`❓ StandardRules: Quiz object triggered`);
-      this.minigameCore.triggerQuiz();
-    } else if (objectName.includes("checkpoint")) {
-      scene.sound.play("checkpoint", { volume: 0.6 });
+      const baseScore = 1000;
+      const penaltyPerSecond = 10;
+      const timePenalty = Math.floor(elapsedSeconds * penaltyPerSecond);
+      const finalScore = Math.max(50, baseScore - timePenalty);
 
-      const checkpointBonus = objectData.properties?.checkpointBonus || 5;
-      this.minigameCore.addScore(checkpointBonus);
       console.log(
-        `🚩 StandardRules: Checkpoint activated (+${checkpointBonus} points)`
+        `🏁 StandardRules: Level completed in ${elapsedSeconds.toFixed(2)}s.`
       );
+      console.log(`   - Time Penalty: ${timePenalty}`);
+      console.log(`   - Final Score: ${finalScore}`);
+
+      scene.sound.play("coin", { volume: 0.8 });
+
+      this.minigameCore.addScore(finalScore);
+      this.minigameCore.triggerQuiz();
+    }
+    // THÊM MỚI: Xử lý logic cho checkpoint
+    else if (objectName.includes("checkpoint")) {
+      // Vị trí của checkpoint object. Chú ý Tiled có gốc tọa độ Y ở đáy object.
+      const checkpointX = objectData.x + objectData.width / 2;
+      const checkpointY = objectData.y - objectData.height / 2;
+
+      // Yêu cầu scene cập nhật vị trí checkpoint
+      // Chúng ta truyền vào object để dễ dàng mở rộng sau này
+      const checkpointActivated = scene.setCheckpoint({
+        x: checkpointX,
+        y: checkpointY,
+      });
+
+      // Chỉ cộng điểm và chơi âm thanh nếu đây là lần đầu kích hoạt checkpoint
+      if (checkpointActivated) {
+        const checkpointBonus = objectData.properties?.checkpointBonus || 5;
+        this.minigameCore.addScore(checkpointBonus);
+        console.log(
+          `🚩 StandardRules: Checkpoint activated (+${checkpointBonus} points) at (${checkpointX}, ${checkpointY})`
+        );
+      }
     } else if (objectName.includes("secret")) {
       scene.sound.play("secret", { volume: 0.8 });
 
@@ -92,6 +117,19 @@ export class StandardRules implements IPlatformerRules {
         `🔍 StandardRules: Secret area found (+${secretBonus} bonus)`
       );
     }
+  }
+
+  // THÊM MỚI: Triển khai phương thức xử lý va chạm với vật nguy hiểm
+  handleHazardCollision(
+    tile: Phaser.Tilemaps.Tile,
+    scene: BasePlatformerScene
+  ): void {
+    console.log("💥 StandardRules: Player hit a hazard!");
+
+    // Chơi âm thanh (tái sử dụng âm thanh 'trap' hoặc thêm âm thanh mới)
+    scene.sound.play("hurt", { volume: 1.0, rate: 0.9 });
+
+    console.log(`💀 Player penalized for hitting a hazard`);
   }
 
   cleanup(): void {

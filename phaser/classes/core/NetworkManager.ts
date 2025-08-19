@@ -13,7 +13,7 @@ export class NetworkManager {
     console.log(`🔧 NetworkManager constructor called`);
     const endpoint =
       process.env.NODE_ENV === "production"
-        ? "wss://game-server-vjqb.onrender.com"
+        ? "wss://your-prod-server.com"
         : "ws://localhost:2567";
     this.client = new Client(endpoint);
     console.log(`🔧 NetworkManager client created for endpoint: ${endpoint}`);
@@ -50,12 +50,15 @@ export class NetworkManager {
   public async joinRoundRoom(
     quizId: number | string, // Thêm string để linh hoạt hơn
     roundNumber: number | string, // Thêm string để linh hoạt hơn
+    username: string, // <-- THÊM MỚI
     testRoomId?: string // <-- THÊM THAM SỐ TÙY CHỌN NÀY
   ) {
     // Ưu tiên sử dụng testRoomId nếu có, nếu không thì tạo ID như cũ
     const targetRoomId = testRoomId || `quiz_${quizId}_round_${roundNumber}`;
 
-    console.log(`🎯 joinRoundRoom called. Target Room ID: "${targetRoomId}"`);
+    console.log(
+      `🎯 joinRoundRoom called. Target Room ID: "${targetRoomId}", User: "${username}"`
+    );
 
     // Guard: Tránh join lại room hiện tại
     if (this.room && this.room.sessionId && this.room.name === "game_room") {
@@ -84,12 +87,16 @@ export class NetworkManager {
       // Sử dụng targetRoomId đã được xác định ở trên
 
       this.room = await this.client.joinOrCreate<GameRoomState>("game_room", {
+        // Options để gửi lên server
+        username: username, // <-- THÊM MỚI
         customRoomId: targetRoomId, // Vẫn dùng customRoomId
         quizId: quizId.toString(),
         roundNumber: roundNumber.toString(),
       });
 
-      console.log(`✅ Joined room "${targetRoomId}" successfully!`);
+      console.log(
+        `✅ Joined room "${targetRoomId}" successfully as ${username}!`
+      );
       console.log(`🔍 Room details:`, this.room.name, this.room.sessionId);
       console.log(`🔍 Room state:`, this.room.state);
       console.log(`📡 About to emit network-connected event...`);

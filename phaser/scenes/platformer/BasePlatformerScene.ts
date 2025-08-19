@@ -17,7 +17,7 @@ import { PlatformerWorldBuilder } from "./PlatformerWorldBuilder";
 import { PlatformerPlayerHandler } from "./PlatformerPlayerHandler";
 import { PlatformerNetworkHandler } from "../../classes/platformer/PlatformerNetworkHandler";
 import { IPlatformerRules } from "./rules/IPlatformerRules";
-import { Room, getStateCallbacks } from "colyseus.js";
+import { Room } from "colyseus.js";
 import {
   GameRoomState,
   Player as PlayerStateSchema,
@@ -61,6 +61,7 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   // === COMPONENTS ===
   protected tilemap!: Phaser.Tilemaps.Tilemap; // Bản đồ game từ Tiled
   protected platformsLayer!: Phaser.Tilemaps.TilemapLayer; // Layer chứa platforms và xu
+  protected foregroundLayer?: Phaser.Tilemaps.TilemapLayer; // Layer foreground (tùy chọn)
 
   // === GAME OBJECTS ===
   protected player!: Player; // Nhân vật chính
@@ -80,6 +81,13 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   // THÊM MỚI: Một thuộc tính để lưu trữ hàm xử lý sự kiện
   private networkConnectedHandler!: (room: Room<GameRoomState>) => void;
 
+  // THÊM MỚI: Map để lưu trữ các tile gốc, giúp chúng ta tìm lại chúng dễ dàng
+  private originalTiles: Map<string, Phaser.Tilemaps.Tile> = new Map();
+  // THÊM MỚI: Cờ để đảm bảo việc đăng ký chỉ xảy ra một lần
+  private hasRegisteredBlocks: boolean = false;
+  // THÊM MỚI: Map để theo dõi state cuối cùng của mỗi block
+  private lastBlockStates: Map<string, string> = new Map();
+
   // === STRATEGY PATTERN COMPONENTS ===
   protected rules!: IPlatformerRules; // Bộ quy tắc do subclass chọn
   protected logicCore!: PlatformerLogicCore; // Core logic với rules
@@ -88,6 +96,11 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   // === CHUYÊN GIA HELPER ===
   private worldBuilder!: PlatformerWorldBuilder; // Chuyên gia xây dựng thế giới
   private playerHandler!: PlatformerPlayerHandler; // Chuyên gia về người chơi
+
+  // THÊM MỚI: Các thuộc tính để quản lý checkpoint và spawn
+  private spawnPoint!: { x: number; y: number };
+  private lastCheckpoint: { x: number; y: number } | null = null;
+  private isRespawning: boolean = false; // Cờ để tránh respawn chồng chéo
 
   /**
    * 🎬 PRELOAD - Load assets chung và riêng cho platformer
@@ -162,6 +175,10 @@ export abstract class BasePlatformerScene extends BaseGameScene {
       "jump",
       "/kenney_new-platformer-pack-1.0/Sounds/sfx_jump.ogg"
     );
+    this.load.audio(
+      "hurt",
+      "/kenney_new-platformer-pack-1.0/Sounds/sfx_hurt.ogg"
+    );
   }
 
   /**
@@ -190,11 +207,16 @@ export abstract class BasePlatformerScene extends BaseGameScene {
 
     // 0. QUAN TRỌNG: Reset player để tránh conflict giữa các round
     this.player = null as any;
-    console.log(`🔄 ${this.SCENE_NAME}: Player reset for new round`);
+    console.log(` ${this.SCENE_NAME}: Player reset for new round`);
+
+    // THÊM MỚI: Reset cờ khi scene bắt đầu
+    this.hasRegisteredBlocks = false;
+    this.originalTiles.clear();
+    this.lastBlockStates.clear();
 
     // 1. Tạo bộ quy tắc do scene con quyết định (Strategy Pattern)
     this.rules = this.createRules();
-    console.log(`🎯 ${this.SCENE_NAME}: Rules created`);
+    console.log(` ${this.SCENE_NAME}: Rules created`);
 
     // 2. Khởi tạo các chuyên gia Helper và cores
     this.worldBuilder = new PlatformerWorldBuilder(this, this.TILEMAP_KEY);
@@ -212,8 +234,14 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     );
 
     // 5. Dùng chuyên gia để xây dựng thế giới
-    const { platformsLayer } = this.worldBuilder.build();
+    const { platformsLayer, foregroundLayer } = this.worldBuilder.build();
     this.platformsLayer = platformsLayer;
+    this.foregroundLayer = foregroundLayer;
+
+    // Lưu lại điểm spawn ban đầu và reset checkpoint
+    this.spawnPoint = this.worldBuilder.findPlayerSpawnPoint();
+    this.lastCheckpoint = null;
+    this.isRespawning = false; // Reset cờ respawn
 
     // 6. Setup các managers (logic này vẫn giữ lại vì khá đơn giản)
     this.setupPlatformerManagers();
@@ -262,6 +290,36 @@ export abstract class BasePlatformerScene extends BaseGameScene {
       console.log(`🌐 Room details:`, room.name, room.sessionId);
       this.room = room;
       this.networkHandler.initialize(room);
+
+      // <-- SỬA LẠI LISTENER onStateChange CHO GỌN GÀNG -->
+      // Sử dụng onStateChange để lắng nghe thay đổi toàn bộ state
+      this.room.onStateChange((state) => {
+        if (state.players) {
+          state.players.forEach(
+            (playerState: PlayerStateSchema, sessionId: string) => {
+              if (sessionId === this.room?.sessionId) {
+                // Chỉ cần truyền state cho Player object
+                this.player?.setPlayerState(playerState);
+              }
+              // BỎ HẾT LOGIC setPosition cho remote player ở đây.
+              // NetworkHandler sẽ tự xử lý.
+            }
+          );
+        }
+      });
+
+      // THÊM MỚI: Bắt đầu lắng nghe các thay đổi trạng thái của block từ server
+      this.listenToBlockChanges();
+
+      // THÊM MỚI: Đăng ký các block của map này với server
+      this.registerBlocksWithServer();
+
+      // DEBUG: Kiểm tra room state
+      console.log("[Client] Room state after connection:", this.room.state);
+      console.log(
+        "[Client] DisappearingBlocks in state:",
+        this.room.state.disappearingBlocks
+      );
     };
 
     // Đăng ký listener bằng thuộc tính đó
@@ -361,13 +419,15 @@ export abstract class BasePlatformerScene extends BaseGameScene {
    * @param playerState Trạng thái ban đầu từ server
    */
   public createMainPlayer(playerState: PlayerStateSchema): void {
-    console.log(`🎯 createMainPlayer called with state:`, {
-      x: playerState.x,
-      y: playerState.y,
-    });
+    // SỬA ĐỔI: Sử dụng this.spawnPoint đã lưu thay vì gọi lại worldBuilder
+    const spawnPoint = this.spawnPoint;
 
     console.log(
-      `🎮 Creating main player at position: ${playerState.x}, ${playerState.y}`
+      `🎯 createMainPlayer called. Server suggested: (${playerState.x}, ${playerState.y}), Map requires: (${spawnPoint.x}, ${spawnPoint.y})`
+    );
+
+    console.log(
+      `🎮 Creating main player at correct map position: ${spawnPoint.x}, ${spawnPoint.y}`
     );
 
     // 🔧 Null checks trước khi tạo player
@@ -386,14 +446,28 @@ export abstract class BasePlatformerScene extends BaseGameScene {
 
     console.log(`🔧 Creating player with playerHandler:`, !!this.playerHandler);
 
+    // Tạo player tại vị trí ĐÚNG từ map
     this.player = this.playerHandler.spawnPlayer(
-      { x: playerState.x, y: playerState.y },
+      spawnPoint, // <--- SỬA Ở ĐÂY: Sử dụng spawnPoint từ map thay vì từ server
       this.platformsLayer,
       this.inputManager,
       this.cameraManager,
       this.logicCore,
       this.networkManager
     );
+
+    // Sau khi tạo xong, gửi một bản cập nhật vị trí lên server ngay lập tức
+    // để các người chơi khác thấy đúng vị trí của bạn.
+    const sprite = this.player.getSprite();
+    this.networkManager.sendUpdate({
+      x: Math.round(sprite.x),
+      y: Math.round(sprite.y),
+      animState: "idle",
+      flipX: false,
+    });
+
+    // THÊM MỚI: Setup collision đơn giản
+    this.setupSimplePlayerCollision();
 
     // Setup interactive objects CHỈ SAU KHI player chính được tạo
     this.worldBuilder.setupInteractiveObjects(
@@ -402,9 +476,56 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     );
 
     console.log(
-      `✅ Main player created successfully at position: ${playerState.x}, ${playerState.y}`
+      `✅ Main player created successfully at correct map position: ${spawnPoint.x}, ${spawnPoint.y}`
     );
   }
+
+  // THÊM MỚI: Setup collision đơn giản - chỉ chặn và cho phép đứng trên đầu
+  private setupSimplePlayerCollision(): void {
+    const mainPlayerSprite = this.player.getSprite();
+    const remotePlayersGroup = this.networkHandler.getRemotePlayersGroup();
+
+    // ĐƠN GIẢN: CHỈ CẦN MỘT COLLIDER để chặn va chạm
+    this.physics.add.collider(
+      mainPlayerSprite,
+      remotePlayersGroup,
+      undefined, // Không cần callback phức tạp
+      this.checkCanStandOnTop, // Chỉ kiểm tra có thể đứng trên đầu không
+      this
+    );
+
+    console.log("🤝 Simple collision enabled: Wall + Platform mode");
+  }
+
+  // THÊM MỚI: Kiểm tra đơn giản - chỉ cho phép đứng trên đầu
+  private checkCanStandOnTop = (object1: any, object2: any): boolean => {
+    const obj1 = object1 as any;
+    const obj2 = object2 as any;
+
+    if (!obj1.body || !obj2.body) {
+      return true; // Mặc định cho phép va chạm
+    }
+
+    const mainPlayerBody = obj1.body as Phaser.Physics.Arcade.Body;
+    const remotePlayerBody = obj2.body as Phaser.Physics.Arcade.Body;
+
+    // Kiểm tra đơn giản: có phải đang nhảy xuống từ trên không?
+    const tolerance = 0;
+    const isFallingOnTop =
+      mainPlayerBody.velocity.y > 0 && // Đang rơi xuống
+      mainPlayerBody.bottom <= remotePlayerBody.top + tolerance; // Chân main player gần đầu remote player
+
+    // LUÔN LUÔN set immovable = true để remote player như bức tường/platform
+    remotePlayerBody.setImmovable(true);
+
+    if (isFallingOnTop) {
+      console.log("👆 Standing on player!");
+    } else {
+      console.log("🧱 Wall collision!");
+    }
+
+    return true; // Luôn cho phép va chạm để chặn hoặc đứng trên đầu
+  };
 
   // === UPDATE LOOP ===
 
@@ -415,6 +536,8 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     // Chỉ cần ra lệnh cho các thành phần tự cập nhật
     this.player?.update();
     this.networkHandler?.update();
+    // THÊM MỚI: Cập nhật trạng thái cát lún cho player handler
+    this.playerHandler?.update();
   }
 
   // === PUBLIC API - Cho React components ===
@@ -477,6 +600,182 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     };
   }
 
+  /**
+   * 👤 GET USER DISPLAY NAME - Lấy tên hiển thị của người chơi
+   * Default: "You"
+   */
+  public getUserDisplayName(): string {
+    const userData = this.getRoundData()?.user;
+    // Ưu tiên fullName, sau đó name, cuối cùng fallback
+    return userData?.fullName || userData?.name || userData?.username || "You";
+  }
+
+  // === DISAPPEARING BLOCKS LOGIC ===
+
+  /**
+   * THÊM MỚI: Quét tilemap, tìm và gửi thông tin các block biến mất lên server.
+   */
+  private registerBlocksWithServer(): void {
+    if (!this.room) {
+      console.error("[Client] Cannot register blocks: no room available");
+      return;
+    }
+
+    if (this.hasRegisteredBlocks) {
+      console.log("[Client] Blocks already registered, skipping");
+      return;
+    }
+
+    console.log("[Client] Scanning tilemap for disappearing blocks...");
+    const blocksData: { id: string; x: number; y: number }[] = [];
+
+    this.platformsLayer.forEachTile((tile) => {
+      if (tile && tile.properties.type === "disappearing") {
+        const tileId = `${tile.x}_${tile.y}`;
+        blocksData.push({ id: tileId, x: tile.x, y: tile.y });
+
+        // Lưu lại tile gốc để có thể tìm và thao tác sau này
+        this.originalTiles.set(tileId, tile);
+        console.log(
+          `[Client] Found disappearing block: ${tileId} at (${tile.x}, ${tile.y})`
+        );
+      }
+    });
+
+    if (blocksData.length > 0) {
+      console.log(
+        `[Client] Registering ${blocksData.length} disappearing blocks with server:`,
+        blocksData
+      );
+      this.room.send("registerDisappearingBlocks", blocksData);
+      this.hasRegisteredBlocks = true; // Đánh dấu đã đăng ký
+    } else {
+      console.log("[Client] No disappearing blocks found in tilemap");
+    }
+  }
+
+  /**
+   * THÊM MỚI: Lắng nghe và phản hồi các thay đổi trạng thái từ server.
+   */
+  private listenToBlockChanges(): void {
+    if (!this.room) {
+      console.error(
+        "[Client] Cannot listen to block changes: no room available"
+      );
+      return;
+    }
+
+    console.log("[Client] Setting up block change listeners...");
+
+    // Sử dụng onStateChange để lắng nghe tất cả thay đổi
+    this.room.onStateChange((state: any) => {
+      console.log(
+        "[Client] Room state changed, checking disappearing blocks..."
+      );
+
+      if (state.disappearingBlocks) {
+        state.disappearingBlocks.forEach((block: any, blockId: string) => {
+          // Kiểm tra xem state của block này có thay đổi không
+          const currentState = block.state;
+          const lastKnownState = this.lastBlockStates.get(blockId);
+
+          if (lastKnownState !== currentState) {
+            console.log(
+              `[Client] Block ${blockId} state changed from ${lastKnownState} to ${currentState}`
+            );
+            this.updateTileVisuals(blockId, currentState);
+            this.lastBlockStates.set(blockId, currentState);
+          }
+        });
+      }
+    });
+
+    console.log("[Client] Block change listeners setup completed");
+  }
+
+  /**
+   * THÊM MỚI: Hàm trung tâm để cập nhật hình ảnh của tile dựa trên state từ server.
+   */
+  private updateTileVisuals(blockId: string, state: string): void {
+    const tile = this.originalTiles.get(blockId);
+    if (!tile) {
+      console.warn(
+        `[Client] Cannot find original tile for blockId: ${blockId}`
+      );
+      return;
+    }
+    const layer = this.platformsLayer;
+
+    console.log(
+      `[Client] Updating tile visuals for ${blockId} to state: ${state}`
+    );
+
+    switch (state) {
+      case "triggered":
+        const existingTileTriggered = layer.getTileAt(tile.x, tile.y);
+        if (existingTileTriggered) {
+          this.tweens.add({
+            targets: existingTileTriggered,
+            alpha: 0.2,
+            yoyo: true,
+            repeat: 5,
+            duration: 150,
+          });
+          console.log(`[Client] Started shake animation for tile ${blockId}`);
+        }
+        break;
+      case "gone":
+        // QUAN TRỌNG: Xóa tile và cập nhật collision
+        const removedTile = layer.removeTileAt(tile.x, tile.y);
+        if (removedTile) {
+          // Cập nhật collision map để tile không còn collision
+          layer.setCollisionByProperty({ collides: true }); // Refresh collision
+          console.log(`[Client] Removed tile ${blockId} and updated collision`);
+        }
+        break;
+      case "idle":
+        // Chỉ đặt lại tile nếu nó chưa tồn tại ở đó
+        if (!layer.hasTileAt(tile.x, tile.y)) {
+          const newTile = layer.putTileAt(tile.index, tile.x, tile.y);
+          if (newTile) {
+            // Khôi phục properties từ tile gốc
+            Object.assign(newTile.properties, tile.properties);
+            newTile.setAlpha(1); // Đảm bảo nó hiện rõ
+
+            // QUAN TRỌNG: Cập nhật collision cho tile mới
+            if (tile.properties.collides) {
+              newTile.setCollision(true);
+            }
+            layer.setCollisionByProperty({ collides: true }); // Refresh collision
+            console.log(`[Client] Restored tile ${blockId} with collision`);
+          }
+        }
+        break;
+    }
+  }
+
+  /**
+   * SỬA ĐỔI HOÀN TOÀN: Hàm này giờ xử lý nhiều loại tile khác nhau.
+   */
+  public handlePlayerOnPlatformTile(tile: Phaser.Tilemaps.Tile): void {
+    // THÊM MỚI: Kiểm tra xem có phải tile nguy hiểm không
+    if (tile.properties.hazard === true) {
+      // Nếu đúng, gọi một phương thức xử lý cái chết riêng
+      this.handlePlayerDeathByHazard(tile);
+      return; // Dừng xử lý các loại tile khác
+    }
+
+    if (tile.properties.type === "disappearing" && this.room) {
+      const tileId = `${tile.x}_${tile.y}`;
+      console.log(`[Client] Player hit disappearing block: ${tileId}`);
+      // Gửi tin nhắn lên server, báo rằng block này đã bị chạm vào.
+      // Server sẽ quyết định xem có nên kích hoạt block hay không (dựa trên trạng thái hiện tại của nó).
+      this.room.send("playerHitBlock", { blockId: tileId });
+      console.log(`[Client] Sent playerHitBlock message for ${tileId}`);
+    }
+    // Logic cho các loại tile khác có thể được thêm vào đây
+  }
+
   // === CLEANUP ===
 
   /**
@@ -537,5 +836,138 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   protected onResume(): void {
     super.onResume();
     this.resumeGameTimer();
+  }
+
+  // ===============================================
+  // === CÁC PHƯƠNG THỨC CHO TÍNH NĂNG NẮM VÀ THOÁT ===
+  // ===============================================
+
+  /**
+   * Tìm người chơi khác gần nhất trong một khoảng cách.
+   */
+  public findClosestRemotePlayer(
+    x: number,
+    y: number,
+    maxDistance: number
+  ): { sessionId: string; distance: number } | null {
+    return this.networkHandler.findClosestRemotePlayer(x, y, maxDistance);
+  }
+
+  /**
+   * THÊM MỚI: Xử lý bỏ nắm khi player chết
+   */
+  public handlePlayerDeath(): void {
+    if (this.room && this.player) {
+      // Gửi message để server biết player này chết và cần bỏ tất cả grab
+      this.room.send("playerDied");
+    }
+  }
+
+  // ===============================================
+  // === THÊM MỚI CÁC PHƯƠNG THỨC CHECKPOINT/RESPAWN ===
+  // ===============================================
+
+  /**
+   * 🚩 SET CHECKPOINT - Được gọi bởi Rules khi người chơi chạm vào checkpoint
+   * @param position Vị trí của checkpoint mới
+   * @returns {boolean} Trả về true nếu checkpoint được cập nhật, false nếu nó đã được kích hoạt rồi.
+   */
+  public setCheckpoint(position: { x: number; y: number }): boolean {
+    // Chỉ cập nhật nếu đây là một checkpoint mới
+    if (
+      this.lastCheckpoint?.x !== position.x ||
+      this.lastCheckpoint?.y !== position.y
+    ) {
+      this.lastCheckpoint = position;
+      console.log(`🚩 New checkpoint set at:`, position);
+
+      // Hiệu ứng nhỏ để báo cho người chơi
+      this.cameraManager.flash(0xffff00, 200);
+      return true;
+    }
+    return false; // Checkpoint này đã được kích hoạt trước đó
+  }
+
+  /**
+   * 💀 HANDLE PLAYER FALL - Được gọi bởi Player khi nó rơi ra khỏi map
+   */
+  public async handlePlayerFall(): Promise<void> {
+    if (this.isRespawning) return; // Nếu đang trong quá trình respawn thì bỏ qua
+
+    this.isRespawning = true;
+    console.log("💀 Handling player fall...");
+
+    // 1. Chơi âm thanh thất bại (nếu có)
+    // this.sound.play("fall_sfx");
+
+    // 2. Làm mờ màn hình
+    await this.cameraManager.fade(0x000000, 300);
+
+    // 3. Xác định vị trí hồi sinh
+    // Nếu có checkpoint thì dùng checkpoint, không thì dùng player_start
+    const respawnPosition = this.lastCheckpoint || this.spawnPoint;
+
+    if (this.lastCheckpoint) {
+      console.log(
+        `💀 Respawning at last checkpoint: (${respawnPosition.x}, ${respawnPosition.y})`
+      );
+    } else {
+      console.log(
+        `💀 No checkpoint found, respawning at player_start: (${respawnPosition.x}, ${respawnPosition.y})`
+      );
+    }
+
+    // 4. Gọi chuyên gia để thực hiện hồi sinh
+    this.playerHandler.respawnPlayer(this.player, respawnPosition);
+
+    // 5. Làm sáng màn hình trở lại
+    await this.cameraManager.fadeIn(300);
+
+    // 6. Reset cờ
+    this.isRespawning = false;
+  }
+
+  /**
+   * THÊM MỚI: HANDLE PLAYER DEATH BY HAZARD - Được gọi khi người chơi chết do va chạm vật nguy hiểm
+   */
+  public async handlePlayerDeathByHazard(
+    hazardTile: Phaser.Tilemaps.Tile
+  ): Promise<void> {
+    if (this.isRespawning) return; // Nếu đang trong quá trình respawn thì bỏ qua
+
+    this.isRespawning = true;
+    console.log("💀 Handling player death by hazard...");
+
+    // 1. Ủy quyền cho Rules xử lý hình phạt (trừ điểm, v.v.)
+    this.rules.handleHazardCollision(hazardTile, this);
+
+    // 2. Gửi thông báo lên server để xử lý logic multiplayer (ví dụ: bỏ nắm)
+    // Tái sử dụng lại phương thức đã có!
+    this.handlePlayerDeath();
+
+    // 3. Làm mờ màn hình
+    await this.cameraManager.fade(0x000000, 300);
+
+    // 4. Xác định vị trí hồi sinh
+    const respawnPosition = this.lastCheckpoint || this.spawnPoint;
+
+    if (this.lastCheckpoint) {
+      console.log(
+        `💀 Respawning at last checkpoint: (${respawnPosition.x}, ${respawnPosition.y})`
+      );
+    } else {
+      console.log(
+        `💀 No checkpoint found, respawning at player_start: (${respawnPosition.x}, ${respawnPosition.y})`
+      );
+    }
+
+    // 5. Gọi chuyên gia để thực hiện hồi sinh
+    this.playerHandler.respawnPlayer(this.player, respawnPosition);
+
+    // 6. Làm sáng màn hình trở lại
+    await this.cameraManager.fadeIn(300);
+
+    // 7. Reset cờ
+    this.isRespawning = false;
   }
 }

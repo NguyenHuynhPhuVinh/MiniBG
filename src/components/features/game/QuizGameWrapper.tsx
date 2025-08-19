@@ -187,6 +187,7 @@ const QuizGameWrapper: React.FC<QuizGameWrapperProps> = ({ quizId, user }) => {
       const data = {
         quizId: quizId,
         userId: user.user_id,
+        user: user, // <-- THÊM MỚI: Truyền cả object user
         questions: questions,
         duration: duration,
         quizInfo: quizInfoResponse?.data?.quiz || quizInfoResponse?.data,

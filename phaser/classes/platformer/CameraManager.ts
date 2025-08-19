@@ -52,6 +52,19 @@ export class CameraManager {
   private setupCamera(): void {
     this.camera.setZoom(this.config.zoom);
     this.camera.setBackgroundColor("#87CEEB"); // Sky blue background
+
+    // Thiết lập bounds ngay từ đầu nếu có
+    if (this.config.bounds.width > 0 && this.config.bounds.height > 0) {
+      this.camera.setBounds(
+        this.config.bounds.x,
+        this.config.bounds.y,
+        this.config.bounds.width,
+        this.config.bounds.height
+      );
+      console.log(
+        `📷 Camera bounds set: ${this.config.bounds.width}x${this.config.bounds.height}`
+      );
+    }
   }
 
   /**

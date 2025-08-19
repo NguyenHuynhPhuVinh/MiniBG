@@ -30,13 +30,16 @@ export class PlatformerWorldBuilder {
    *
    * LUỒNG:
    * 1. Thêm tilesets vào tilemap
-   * 2. Tạo layers theo thứ tự render
+   * 2. Tạo layers theo thứ tự render (Background → Platforms → Foreground)
    * 3. Tối ưu render quality
    * 4. Setup collision và physics bounds
    *
    * @returns Object chứa các layer đã được tạo
    */
-  public build(): { platformsLayer: Phaser.Tilemaps.TilemapLayer } {
+  public build(): {
+    platformsLayer: Phaser.Tilemaps.TilemapLayer;
+    foregroundLayer?: Phaser.Tilemaps.TilemapLayer;
+  } {
     console.log("🏗️ PlatformerWorldBuilder: Building world...");
 
     // 1. Thêm common tilesets
@@ -49,7 +52,7 @@ export class PlatformerWorldBuilder {
       "spritesheet-backgrounds-default"
     )!;
 
-    // 2. Tạo layers theo thứ tự render chuẩn
+    // 2. Tạo layers theo thứ tự render chuẩn (Background → Platforms → Foreground)
     const backgroundLayer = this.tilemap.createLayer("Background", [
       backgroundTileset,
       tilesTileset,
@@ -59,13 +62,41 @@ export class PlatformerWorldBuilder {
       backgroundTileset,
     ])!;
 
-    // 3. Tối ưu render quality
-    this.optimizeRenderQuality(backgroundLayer, platformsLayer);
+    // THÊM MỚI: Tạo Foreground layer nếu có trong JSON
+    let foregroundLayer: Phaser.Tilemaps.TilemapLayer | undefined;
+    if (this.hasForegroundLayer()) {
+      foregroundLayer =
+        this.tilemap.createLayer("Foreground", [
+          tilesTileset,
+          backgroundTileset,
+        ]) || undefined;
+
+      if (foregroundLayer) {
+        // QUAN TRỌNG: Set depth cao để foreground luôn render trên player
+        foregroundLayer.setDepth(1000); // Player thường có depth 100-500
+
+        console.log(
+          "🎨 Foreground layer created with depth 1000 and alpha 0.8"
+        );
+      }
+    } else {
+      console.log("ℹ️ No Foreground layer found in tilemap JSON");
+    }
+
+    // 3. Tối ưu render quality cho tất cả layers
+    this.optimizeRenderQuality(
+      backgroundLayer,
+      platformsLayer,
+      foregroundLayer
+    );
 
     // 4. Setup collision cho platforms
     platformsLayer.setCollisionByProperty({ collides: true });
 
-    // 5. Set physics world bounds
+    // 5. Setup animated tiles
+    this.setupAnimatedTiles();
+
+    // 6. Set physics world bounds
     this.scene.physics.world.setBounds(
       0,
       0,
@@ -77,7 +108,20 @@ export class PlatformerWorldBuilder {
       `🗺️ World built: ${this.tilemap.widthInPixels}x${this.tilemap.heightInPixels}`
     );
 
-    return { platformsLayer };
+    return { platformsLayer, foregroundLayer };
+  }
+
+  /**
+   * 🔍 HAS FOREGROUND LAYER - Kiểm tra xem tilemap có chứa Foreground layer không
+   *
+   * @returns true nếu có Foreground layer trong JSON, false nếu không
+   */
+  private hasForegroundLayer(): boolean {
+    // Kiểm tra trong tilemap data xem có layer tên "Foreground" không
+    const layerData = this.tilemap.layers.find(
+      (layer) => layer.name === "Foreground"
+    );
+    return !!layerData;
   }
 
   /**
@@ -182,10 +226,12 @@ export class PlatformerWorldBuilder {
    *
    * @param backgroundLayer Background layer (có thể null)
    * @param platformsLayer Platforms layer
+   * @param foregroundLayer Foreground layer (có thể undefined)
    */
   private optimizeRenderQuality(
     backgroundLayer: Phaser.Tilemaps.TilemapLayer | null,
-    platformsLayer: Phaser.Tilemaps.TilemapLayer
+    platformsLayer: Phaser.Tilemaps.TilemapLayer,
+    foregroundLayer?: Phaser.Tilemaps.TilemapLayer
   ): void {
     // Tắt culling để tránh tiles biến mất khi camera di chuyển
     if (backgroundLayer) {
@@ -194,8 +240,11 @@ export class PlatformerWorldBuilder {
     if (platformsLayer) {
       platformsLayer.setSkipCull(true);
     }
+    if (foregroundLayer) {
+      foregroundLayer.setSkipCull(true);
+    }
 
-    console.log("🎨 Render quality optimized");
+    console.log("🎨 Render quality optimized for all layers");
   }
 
   /**
@@ -217,6 +266,263 @@ export class PlatformerWorldBuilder {
    */
   public getTilemap(): Phaser.Tilemaps.Tilemap {
     return this.tilemap;
+  }
+
+  /**
+   * 🎬 SETUP ANIMATED TILES - Thiết lập animation cho tiles
+   *
+   * CÁCH ĐÚNG: Phaser 3 không hỗ trợ native animated tiles từ Tiled.
+   * Cần tự đọc animation data từ tileset JSON và tạo sprites thay thế.
+   */
+  private setupAnimatedTiles(): void {
+    console.log("🎬 Setting up animated tiles...");
+
+    // Kiểm tra xem có tileset nào có animation data không
+    let hasAnimations = false;
+
+    this.tilemap.tilesets.forEach((tileset: Phaser.Tilemaps.Tileset) => {
+      // Kiểm tra tileset có animation data không
+      const tilesetData = tileset.tileData as any;
+      if (tilesetData && Object.keys(tilesetData).length > 0) {
+        Object.keys(tilesetData).forEach((tileId: string) => {
+          const tileData = tilesetData[tileId] as any;
+          if (tileData.animation && Array.isArray(tileData.animation)) {
+            hasAnimations = true;
+            console.log(
+              `🎬 Found animation for tile ${tileId} in tileset ${tileset.name}`
+            );
+            this.createTileAnimation(
+              tileset,
+              parseInt(tileId),
+              tileData.animation
+            );
+          }
+        });
+      }
+    });
+
+    if (!hasAnimations) {
+      console.log("ℹ️ No animated tiles found in tilemap");
+      return;
+    }
+
+    // Áp dụng animations cho tiles trên map
+    this.replaceAnimatedTilesWithSprites();
+  }
+
+  /**
+   * 🎨 CREATE TILE ANIMATION - Tạo Phaser animation từ Tiled animation data
+   */
+  private createTileAnimation(
+    tileset: Phaser.Tilemaps.Tileset,
+    tileId: number,
+    animationData: any[]
+  ): void {
+    if (!tileset.image) {
+      console.warn(`⚠️ Tileset ${tileset.name} has no image`);
+      return;
+    }
+
+    // Đảm bảo tileset có frames được tạo
+    this.ensureTilesetFrames(tileset);
+
+    const animKey = `${tileset.name}_tile_${tileId}`;
+
+    if (this.scene.anims.exists(animKey)) {
+      return; // Animation đã tồn tại
+    }
+
+    // Tạo frames từ animation data
+    // Chú ý: frame.tileid là relative trong tileset, cần cộng với firstgid
+    const frames: Phaser.Types.Animations.AnimationFrame[] = animationData.map(
+      (frame: any) => {
+        const globalTileId = tileset.firstgid + frame.tileid;
+        console.log(
+          `🎬 Animation frame: tileid=${frame.tileid}, globalId=${globalTileId}`
+        );
+        return {
+          key: tileset.image!.key,
+          frame: globalTileId.toString(), // Sử dụng string frame name
+        };
+      }
+    );
+
+    // Tính frame rate từ duration (Tiled dùng milliseconds)
+    const avgDuration =
+      animationData.reduce(
+        (sum: number, frame: any) => sum + frame.duration,
+        0
+      ) / animationData.length;
+    const frameRate = 1000 / avgDuration; // Convert ms to frames per second
+
+    this.scene.anims.create({
+      key: animKey,
+      frames: frames,
+      frameRate: frameRate,
+      repeat: -1, // Lặp vô hạn
+    });
+
+    console.log(
+      `✅ Created animation: ${animKey} with ${
+        frames.length
+      } frames at ${frameRate.toFixed(1)} fps`
+    );
+  }
+
+  /**
+   * 🔄 REPLACE ANIMATED TILES WITH SPRITES - Thay thế tiles có animation bằng sprites
+   */
+  private replaceAnimatedTilesWithSprites(): void {
+    console.log("🔄 Replacing animated tiles with sprites...");
+
+    this.tilemap.layers.forEach((layerData: Phaser.Tilemaps.LayerData) => {
+      if (layerData.tilemapLayer) {
+        this.processLayerForAnimatedTiles(layerData.tilemapLayer);
+      }
+    });
+  }
+
+  /**
+   * 🔍 PROCESS LAYER FOR ANIMATED TILES - Xử lý một layer để tìm và thay thế animated tiles
+   */
+  private processLayerForAnimatedTiles(
+    layer: Phaser.Tilemaps.TilemapLayer
+  ): void {
+    // Xác định depth dựa trên tên layer
+    const layerName = layer.layer.name;
+    let spriteDepth = 0;
+
+    switch (layerName) {
+      case "Background":
+        spriteDepth = -100; // Phía sau player
+        break;
+      case "Platforms":
+        spriteDepth = 0; // Cùng level với player
+        break;
+      case "Foreground":
+        spriteDepth = 1000; // Phía trước player (che player)
+        break;
+      default:
+        spriteDepth = 0;
+    }
+
+    layer.forEachTile((tile: Phaser.Tilemaps.Tile) => {
+      if (!tile || tile.index === -1) return;
+
+      // Tìm tileset của tile
+      let tileset: Phaser.Tilemaps.Tileset | null = null;
+      for (const ts of this.tilemap.tilesets) {
+        if (tile.index >= ts.firstgid && tile.index < ts.firstgid + ts.total) {
+          tileset = ts;
+          break;
+        }
+      }
+
+      if (!tileset || !tileset.image) return;
+
+      // Kiểm tra tile có animation không
+      const tileId = tile.index - tileset.firstgid;
+      const animKey = `${tileset.name}_tile_${tileId}`;
+
+      if (this.scene.anims.exists(animKey)) {
+        // Tạo sprite thay thế với frame đầu tiên của animation
+        const animSprite = this.scene.add.sprite(
+          tile.getCenterX(),
+          tile.getCenterY(),
+          tileset.image.key,
+          tile.index.toString() // Sử dụng string frame name
+        );
+
+        // Đặt kích thước sprite bằng kích thước tile (64x64)
+        animSprite.setDisplaySize(tile.width, tile.height);
+
+        // QUAN TRỌNG: Set depth dựa trên layer
+        animSprite.setDepth(spriteDepth);
+
+        // Phát animation
+        animSprite.play(animKey);
+
+        // Ẩn tile gốc
+        tile.setVisible(false);
+
+        console.log(
+          `🎬 Replaced tile at (${tile.x}, ${tile.y}) with animated sprite (depth: ${spriteDepth}, layer: ${layerName})`
+        );
+      }
+    });
+  }
+
+  /**
+   * 🔧 ENSURE TILESET FRAMES - Đảm bảo tileset có frames được tạo
+   */
+  private ensureTilesetFrames(tileset: Phaser.Tilemaps.Tileset): void {
+    if (!tileset.image) return;
+
+    const texture = this.scene.textures.get(tileset.image.key);
+    if (!texture) {
+      console.warn(`⚠️ Texture ${tileset.image.key} not found`);
+      return;
+    }
+
+    // Lấy kích thước thực tế của texture
+    const textureSource = texture.source[0];
+    const imageWidth = textureSource.width;
+    const imageHeight = textureSource.height;
+
+    // Thông số tileset với margin và spacing
+    const margin = 1; // Margin từ viền tileset
+    const spacing = 2; // Spacing giữa các tiles
+    const tileWidth = 64; // Kích thước tile cố định
+    const tileHeight = 64;
+
+    console.log(`🔧 Creating frames for tileset: ${tileset.name}`);
+    console.log(
+      `📏 Image size: ${imageWidth}x${imageHeight}, Tile size: ${tileWidth}x${tileHeight}`
+    );
+    console.log(`📐 Margin: ${margin}px, Spacing: ${spacing}px`);
+
+    // Tính số tiles theo chiều ngang và dọc (có tính margin và spacing)
+    const tilesPerRow = Math.floor(
+      (imageWidth - margin * 2 + spacing) / (tileWidth + spacing)
+    );
+    const tilesPerColumn = Math.floor(
+      (imageHeight - margin * 2 + spacing) / (tileHeight + spacing)
+    );
+    const totalTiles = tilesPerRow * tilesPerColumn;
+
+    console.log(
+      `🧮 Tiles layout: ${tilesPerRow}x${tilesPerColumn} = ${totalTiles} tiles`
+    );
+
+    // Tạo frames cho từng tile
+    for (let i = 0; i < totalTiles; i++) {
+      const frameIndex = tileset.firstgid + i;
+
+      // Kiểm tra frame đã tồn tại chưa
+      if (texture.has(frameIndex.toString())) {
+        continue;
+      }
+
+      // Tính vị trí tile trong tileset (có tính margin và spacing)
+      const row = Math.floor(i / tilesPerRow);
+      const col = i % tilesPerRow;
+      const tileX = margin + col * (tileWidth + spacing);
+      const tileY = margin + row * (tileHeight + spacing);
+
+      // Thêm frame vào texture
+      texture.add(
+        frameIndex.toString(), // Frame name
+        0, // Source index
+        tileX, // X position
+        tileY, // Y position
+        tileWidth, // Width
+        tileHeight // Height
+      );
+    }
+
+    console.log(
+      `✅ Created ${totalTiles} frames for tileset ${tileset.name} (firstgid: ${tileset.firstgid})`
+    );
   }
 
   /**

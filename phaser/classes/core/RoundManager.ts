@@ -24,6 +24,14 @@ interface RoundData {
 interface QuizData {
   quizId: number;
   userId: number | string;
+  user?: {
+    user_id?: number;
+    fullName?: string;
+    name?: string;
+    username?: string;
+    email?: string;
+    role?: string;
+  }; // <-- CẬP NHẬT: Thêm đầy đủ thông tin user
   questions: any[];
   duration: number;
   quizInfo: any;
@@ -203,9 +211,16 @@ export class RoundManager {
 
     // ===== LOGIC MỚI: THAM GIA PHÒNG CỦA VÒNG MỚI =====
     if (this.quizData) {
+      // Ưu tiên fullName, sau đó name, cuối cùng fallback
+      const username =
+        this.quizData.user?.fullName ||
+        this.quizData.user?.name ||
+        this.quizData.user?.username ||
+        "Guest";
       await this.networkManager.joinRoundRoom(
         this.quizData.quizId,
-        round.roundNumber
+        round.roundNumber,
+        username // <-- Truyền tên thực tế vào
       );
     }
     // =================================================

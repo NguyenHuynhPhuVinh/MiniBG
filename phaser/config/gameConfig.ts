@@ -52,6 +52,12 @@ export const createGameConfig = (
       antialias: true, // Bật antialias cho đồ họa mượt
       pixelArt: false, // Tắt pixel art mode (bật nếu dùng pixel art)
       powerPreference: "high-performance", // Ưu tiên GPU mạnh để render
+      clearBeforeRender: true, // Clear canvas trước mỗi frame
+      preserveDrawingBuffer: false, // Tối ưu performance
+      failIfMajorPerformanceCaveat: false, // Cho phép fallback
+      // Thêm config cho text rendering tốt hơn
+      transparent: false, // Không cần transparency cho background
+      roundPixels: true, // Làm tròn pixel để text sắc nét hơn
     },
   };
 };

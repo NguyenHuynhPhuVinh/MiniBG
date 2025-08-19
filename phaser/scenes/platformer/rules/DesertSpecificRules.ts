@@ -19,12 +19,14 @@ import { BasePlatformerScene } from "../BasePlatformerScene";
 export class DesertSpecificRules implements IPlatformerRules {
   private minigameCore!: MinigameCore;
   private scene!: BasePlatformerScene;
+  private startTime: number = 0;
 
   initialize(scene: BasePlatformerScene, minigameCore: MinigameCore): void {
     this.scene = scene;
     this.minigameCore = minigameCore;
+    this.startTime = scene.time.now;
     console.log(
-      `🏜️ DesertSpecificRules: Initialized for harsh desert environment`
+      `🏜️ DesertSpecificRules: Time trial started at ${this.startTime} for desert scene`
     );
   }
 
@@ -33,14 +35,9 @@ export class DesertSpecificRules implements IPlatformerRules {
     scene: BasePlatformerScene
   ): void {
     if (tile.properties?.name === "xu" || tile.properties?.type === "coin") {
-      // Desert có âm thanh khô khan hơn cho coin
-      scene.sound.play("coin", { volume: 0.8, rate: 0.9 }); // Slightly lower pitch for desert feel
-
-      const score = 15; // Higher value in desert (vs 10 in standard)
-      this.minigameCore.addScore(score);
-      console.log(
-        `🏜️ DesertRules: Coin found in harsh desert (+${score} points - rare find!)`
-      );
+      // Coins are decorative in desert time-trial. Keep a small sound only.
+      scene.sound.play("coin", { volume: 0.8, rate: 0.9 });
+      console.log(`🏜️ DesertRules: Collected coin (decorative, no score)`);
     }
 
     if (tile.properties?.name === "gem") {
@@ -66,8 +63,8 @@ export class DesertSpecificRules implements IPlatformerRules {
       // Desert traps are harsher
       scene.sound.play("trap", { volume: 1.0, rate: 0.8 }); // Deeper, more ominous
 
-      const penalty = 10; // Harsher penalty in desert (vs 5 in standard)
-      this.minigameCore.addScore(-penalty);
+      const penalty = 15; // Harsher penalty in desert for time-trial
+      this.minigameCore.subtractScore(penalty);
       console.log(
         `🏜️ DesertRules: Desert trap! (-${penalty} points - harsh penalty)`
       );
@@ -84,51 +81,68 @@ export class DesertSpecificRules implements IPlatformerRules {
     );
 
     if (objectName.includes("finish") || objectName.includes("level_end")) {
-      // Victory sound với desert flavor
-      scene.sound.play("success", { volume: 1.0, rate: 0.9 }); // Triumphant but weary
+      // Compute elapsed time and convert to score (stricter formula for desert)
+      const endTime = scene.time.now;
+      const elapsedSeconds = (endTime - this.startTime) / 1000;
 
-      const bonus = 100; // Double standard bonus (vs 50)
-      this.minigameCore.addScore(bonus);
+      const baseScore = 1500; // higher base for desert
+      const penaltyPerSecond = 15; // harsher penalty per second
+      const timePenalty = Math.floor(elapsedSeconds * penaltyPerSecond);
+      const finalScore = Math.max(100, baseScore - timePenalty);
+
       console.log(
-        `🏁 DesertRules: Desert conquered! (+${bonus} survival bonus)`
+        `🏁 DesertRules: Desert conquered in ${elapsedSeconds.toFixed(2)}s.`
       );
-      this.minigameCore.triggerQuiz();
-    } else if (objectName.includes("quiz")) {
-      console.log(`❓ DesertRules: Quiz oasis reached`);
+      console.log(`   - Time Penalty: ${timePenalty}`);
+      console.log(`   - Final Score: ${finalScore}`);
+
+      scene.sound.play("coin", { volume: 1.0, rate: 0.9 });
+
+      this.minigameCore.addScore(finalScore);
       this.minigameCore.triggerQuiz();
     } else if (objectName.includes("checkpoint")) {
-      scene.sound.play("checkpoint", { volume: 0.8 }); // Relief sound in desert
+      scene.sound.play("checkpoint", { volume: 0.8 });
 
-      const checkpointBonus = 10; // Higher than standard (5)
+      const checkpointBonus = 10;
       this.minigameCore.addScore(checkpointBonus);
       console.log(
         `🚩 DesertRules: Desert checkpoint - crucial rest point (+${checkpointBonus} points)`
       );
     } else if (objectName.includes("secret")) {
-      scene.sound.play("secret", { volume: 1.0, rate: 1.1 }); // Mysterious oasis discovery
+      scene.sound.play("secret", { volume: 1.0, rate: 1.1 });
 
-      const secretBonus = 50; // Double standard bonus (vs 25)
+      const secretBonus = 50;
       this.minigameCore.addScore(secretBonus);
       console.log(
         `🏝️ DesertRules: Hidden oasis discovered! (+${secretBonus} points - miracle find!)`
       );
     } else if (objectName.includes("cactus")) {
-      // Desert-specific: Cactus interaction
-      scene.sound.play("trap", { volume: 0.7, rate: 1.3 }); // Sharp, quick sting
+      scene.sound.play("trap", { volume: 0.7, rate: 1.3 });
 
       const penalty = 8;
-      this.minigameCore.addScore(-penalty);
+      this.minigameCore.subtractScore(penalty);
       console.log(`🌵 DesertRules: Cactus sting! (-${penalty} points)`);
     } else if (objectName.includes("mirage")) {
-      // Desert-specific: Mirage (fake oasis)
-      scene.sound.play("trap", { volume: 0.5, rate: 0.7 }); // Disappointing, hollow sound
+      scene.sound.play("trap", { volume: 0.5, rate: 0.7 });
 
       const penalty = 15;
-      this.minigameCore.addScore(-penalty);
+      this.minigameCore.subtractScore(penalty);
       console.log(
         `🌀 DesertRules: Mirage deception! (-${penalty} points - wasted energy)`
       );
     }
+  }
+
+  // THÊM MỚI: Triển khai phương thức xử lý va chạm với vật nguy hiểm
+  handleHazardCollision(
+    tile: Phaser.Tilemaps.Tile,
+    scene: BasePlatformerScene
+  ): void {
+    console.log("💥 DesertSpecificRules: Player hit a HARSH hazard!");
+
+    scene.sound.play("hurt", { volume: 1.0, rate: 0.7 }); // Âm thanh trầm hơn
+
+    console.log(`💀 Player penalized for hitting a desert hazard`);
   }
 
   cleanup(): void {

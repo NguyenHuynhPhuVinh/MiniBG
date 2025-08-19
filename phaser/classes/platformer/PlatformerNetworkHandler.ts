@@ -5,6 +5,7 @@ import {
 } from "../core/types/GameRoomState";
 import { BasePlatformerScene } from "../../scenes/platformer/BasePlatformerScene";
 import { AnimationManager, AnimationState } from "./AnimationManager";
+import { TextUtils } from "../../utils/TextUtils";
 
 /**
  * 📡 PLATFORMER NETWORK HANDLER - Chuyên gia Xử lý Multiplayer
@@ -21,16 +22,22 @@ import { AnimationManager, AnimationState } from "./AnimationManager";
 export class PlatformerNetworkHandler {
   private scene: BasePlatformerScene;
   private platformsLayer: Phaser.Tilemaps.TilemapLayer;
-  private room!: Room<GameRoomState>;
+  private room!: Room<any>;
 
-  // Dùng để lưu trữ sprite và animation manager của những người chơi khác
+  // THAY ĐỔI: Chuyển remotePlayerSprites thành một Group
+  private remotePlayersGroup!: Phaser.Physics.Arcade.Group;
   private remotePlayerSprites: Map<string, Phaser.Physics.Arcade.Sprite> =
     new Map();
   private remotePlayerAnims: Map<string, AnimationManager> = new Map();
+  private remotePlayerNameTags: Map<string, Phaser.GameObjects.Text> =
+    new Map(); // <-- THÊM MỚI
 
   // 🔧 Track created players để tránh duplicates
   private createdPlayers: Set<string> = new Set();
   private isListenersSetup: boolean = false; // Thêm cờ để đảm bảo listener chỉ setup 1 lần
+  
+  // <-- THÊM THUỘC TÍNH CHO NỘI SUY THỐNG NHẤT -->
+  private LERP_FACTOR = 0.25; // Dùng chung LERP_FACTOR cho nhất quán
 
   constructor(
     scene: BasePlatformerScene,
@@ -38,13 +45,21 @@ export class PlatformerNetworkHandler {
   ) {
     this.scene = scene;
     this.platformsLayer = platformsLayer;
+
+    // KHỞI TẠO GROUP Ở ĐÂY
+    this.remotePlayersGroup = this.scene.physics.add.group();
+  }
+
+  // THÊM MỚI: Getter để BasePlatformerScene có thể truy cập group này
+  public getRemotePlayersGroup(): Phaser.Physics.Arcade.Group {
+    return this.remotePlayersGroup;
   }
 
   /**
    * Khởi tạo handler với room instance và thiết lập các listeners.
    * @param room - Instance của Colyseus Room.
    */
-  public initialize(room: Room<GameRoomState>): void {
+  public initialize(room: Room<any>): void {
     console.log(
       `🔧 PlatformerNetworkHandler initializing with room:`,
       room.name
@@ -77,7 +92,7 @@ export class PlatformerNetworkHandler {
       return;
     }
 
-    const $ = getStateCallbacks(this.room);
+    const $: any = getStateCallbacks(this.room);
 
     // XÓA ĐOẠN FOREACH ĐỂ TRÁNH RACE CONDITION
     // Lý do: onAdd sẽ được gọi cho TẤT CẢ players hiện có khi state được sync lần đầu
@@ -111,17 +126,87 @@ export class PlatformerNetworkHandler {
    */
   public update(): void {
     this.remotePlayerSprites.forEach((sprite, sessionId) => {
-      const target_x = sprite.getData("target_x");
-      const target_y = sprite.getData("target_y");
+      const target_x = sprite.getData('target_x');
+      const target_y = sprite.getData('target_y');
+      const isGrabbed = sprite.getData('isGrabbed') === true;
 
-      if (typeof target_x === "number" && typeof target_y === "number") {
-        // Nội suy tuyến tính (Lerp) để làm mượt chuyển động
-        const factor = 0.2;
-        sprite.x = Phaser.Math.Linear(sprite.x, target_x, factor);
-        sprite.y = Phaser.Math.Linear(sprite.y, target_y, factor);
+      if (typeof target_x !== 'number' || typeof target_y !== 'number') {
+        return;
+      }
+
+      if (isGrabbed) {
+        // <-- LOGIC NỘI SUY CHO REMOTE PLAYER BỊ NẮM -->
+        // Vô hiệu hóa vật lý nhưng vẫn giữ nội suy mượt mà
+        const body = sprite.body as Phaser.Physics.Arcade.Body;
+        body.setVelocity(0, 0); // Dừng mọi chuyển động vật lý
+        body.setAllowGravity(false); // Tắt trọng lực
+        body.setImmovable(true); // Không bị đẩy bởi vật khác
+        
+        // Vẫn dùng nội suy tuyến tính để chuyển động mượt
+        sprite.x = Phaser.Math.Linear(sprite.x, target_x, this.LERP_FACTOR);
+        sprite.y = Phaser.Math.Linear(sprite.y, target_y, this.LERP_FACTOR);
+      } else {
+        // <-- LOGIC THÍCH ỨNG CHO REMOTE PLAYER TỰ DO -->
+        // Kiểm tra vị trí target có hợp lệ không
+        const worldHeight = this.scene.physics.world.bounds.height;
+        const worldWidth = this.scene.physics.world.bounds.width;
+
+        // Nếu target nằm ngoài world bounds hoặc dưới đáy -> không nội suy
+        if (
+          target_x < 0 ||
+          target_x > worldWidth ||
+          target_y < 0 ||
+          target_y > worldHeight
+        ) {
+          console.warn(
+            `[NetworkHandler] Invalid target position for ${sessionId}: (${target_x}, ${target_y})`
+          );
+          return;
+        }
+
+        // Tính khoảng cách để điều chỉnh tốc độ nội suy
+        const distanceX = Math.abs(target_x - sprite.x);
+        const distanceY = Math.abs(target_y - sprite.y);
+        const totalDistance = Math.sqrt(
+          distanceX * distanceX + distanceY * distanceY
+        );
+
+        // Điều chỉnh factor dựa trên khoảng cách
+        if (totalDistance > 200) {
+          // Khoảng cách quá lớn -> teleport ngay lập tức (có thể do lag hoặc respawn)
+          sprite.x = target_x;
+          sprite.y = target_y;
+        } else {
+          // Nội suy với factor thích ứng
+          let factor = 0.2; // Factor mặc định cho chuyển động chậm
+
+          if (totalDistance > 100) {
+            // Khoảng cách lớn (nhảy xa) -> nội suy nhanh
+            factor = 0.8;
+          } else if (totalDistance > 50) {
+            // Khoảng cách trung bình (nhảy) -> nội suy vừa
+            factor = 0.5;
+          } else if (totalDistance > 20) {
+            // Khoảng cách nhỏ (di chuyển nhanh) -> nội suy bình thường
+            factor = 0.3;
+          }
+          // Khoảng cách rất nhỏ (< 20) -> giữ factor mặc định 0.2
+
+          sprite.x = Phaser.Math.Linear(sprite.x, target_x, factor);
+          sprite.y = Phaser.Math.Linear(sprite.y, target_y, factor);
+        }
+      }
+      
+      // Cập nhật vị trí name tag
+      const nameTag = this.remotePlayerNameTags.get(sessionId);
+      if (nameTag) {
+        nameTag.x = sprite.x;
+        nameTag.y = sprite.y - 60;
       }
     });
   }
+
+  // THÊM MỚI: Cập nhật debug hitbox cho remote player
 
   /**
    * 🖼️ SETUP REMOTE PLAYER FRAMES - Setup frames cho remote players
@@ -191,13 +276,37 @@ export class PlatformerNetworkHandler {
         "spritesheet-characters-default",
         frameKey
       );
-      entity.setDisplaySize(96, 96).setTint(0x00ff00); // Màu xanh để phân biệt
+
+      // XÓA DÒNG NÀY ĐỂ BỎ MÀU XANH
+      // entity.setDisplaySize(96, 96).setTint(0x00ff00);
+
+      // THAY BẰNG DÒNG NÀY
+      entity.setDisplaySize(96, 96);
+
+      // THÊM MỚI: Tạo Name Tag với TextUtils
+      const nameTag = TextUtils.createPlayerNameTag(
+        this.scene,
+        playerState.x,
+        playerState.y - 60,
+        playerState.username,
+        false // isLocalPlayer = false
+      );
+
+      // Thêm hiệu ứng fade in cho name tag
+      TextUtils.fadeInText(nameTag, 300);
+
+      this.remotePlayerNameTags.set(sessionId, nameTag); // Lưu lại name tag
 
       // Va chạm với nền đất nhưng không bị ảnh hưởng bởi trọng lực
       this.scene.physics.add.collider(entity, this.platformsLayer);
+      // Thiết lập vật lý đơn giản: không bị trọng lực, không bị đẩy, như bức tường
       const body = entity.body as Phaser.Physics.Arcade.Body;
       body.setAllowGravity(false);
       body.setImmovable(true);
+      body.pushable = false;
+      body.setSize(48, 80);
+      body.setOffset(40, 48);
+      this.remotePlayersGroup.add(entity);
 
       this.remotePlayerSprites.set(sessionId, entity);
       this.remotePlayerAnims.set(
@@ -210,10 +319,18 @@ export class PlatformerNetworkHandler {
       entity.setData("target_y", playerState.y);
 
       // Lắng nghe thay đổi trạng thái của người chơi này từ server
-      const $ = getStateCallbacks(this.room!);
-      $(playerState).onChange(() => {
-        entity.setData("target_x", playerState.x);
-        entity.setData("target_y", playerState.y);
+      const $: any = getStateCallbacks(this.room!);
+      ($ as any)(playerState).onChange(() => {
+        // CẬP NHẬT DỮ LIỆU ĐỂ HÀM UPDATE() SỬ DỤNG
+        entity.setData('target_x', playerState.x);
+        entity.setData('target_y', playerState.y);
+        entity.setData('isGrabbed', playerState.isGrabbed); // <-- Thêm dòng này
+
+        // Cập nhật username nếu nó thay đổi (hiếm nhưng nên có)
+        const nameTag = this.remotePlayerNameTags.get(sessionId);
+        if (nameTag) {
+          nameTag.setText(playerState.username);
+        }
 
         const animManager = this.remotePlayerAnims.get(sessionId);
         animManager?.playAnimation(playerState.animState as AnimationState);
@@ -231,7 +348,8 @@ export class PlatformerNetworkHandler {
   ) => {
     const entity = this.remotePlayerSprites.get(sessionId);
     if (entity) {
-      entity.destroy();
+      // THAY ĐỔI: Xóa khỏi group
+      this.remotePlayersGroup.remove(entity, true, true);
       this.remotePlayerSprites.delete(sessionId);
     }
 
@@ -240,8 +358,51 @@ export class PlatformerNetworkHandler {
       animManager.destroy();
       this.remotePlayerAnims.delete(sessionId);
     }
-    console.log(`Removed remote player sprite for ${sessionId}`);
+
+    // THÊM MỚI: Destroy name tag
+    const nameTag = this.remotePlayerNameTags.get(sessionId);
+    if (nameTag) {
+      nameTag.destroy();
+      this.remotePlayerNameTags.delete(sessionId);
+    }
+
+    // THÊM MỚI: Destroy debug hitbox
+
+    console.log(`Removed remote player sprite and name tag for ${sessionId}`);
   };
+
+  // <-- THÊM CÁC PHƯƠNG THỨC HELPER MỚI CHO TÍNH NĂNG NẮM VÀ THOÁT -->
+
+  /**
+   * Lấy sprite của một người chơi từ xa.
+   */
+  public getRemoteSprite(
+    sessionId: string
+  ): Phaser.Physics.Arcade.Sprite | undefined {
+    return this.remotePlayerSprites.get(sessionId);
+  }
+
+  /**
+   * Tìm người chơi từ xa gần nhất.
+   */
+  public findClosestRemotePlayer(
+    x: number,
+    y: number,
+    maxDistance: number
+  ): { sessionId: string; distance: number } | null {
+    let closestPlayer: { sessionId: string; distance: number } | null = null;
+    let minDistance = maxDistance;
+
+    this.remotePlayerSprites.forEach((sprite, sessionId) => {
+      const distance = Phaser.Math.Distance.Between(x, y, sprite.x, sprite.y);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestPlayer = { sessionId, distance };
+      }
+    });
+
+    return closestPlayer;
+  }
 
   /**
    * Dọn dẹp tài nguyên khi scene kết thúc.
@@ -249,8 +410,13 @@ export class PlatformerNetworkHandler {
   public cleanup(): void {
     // Không cần cleanup listeners vì chúng ta không trực tiếp gán vào room.state.players
     // Colyseus tự động cleanup khi room bị destroy
+
+    // THAY ĐỔI: Dọn dẹp group
+    this.remotePlayersGroup.clear(true, true);
     this.remotePlayerSprites.clear();
     this.remotePlayerAnims.clear();
+    this.remotePlayerNameTags.clear(); // <-- THÊM MỚI
+
     this.createdPlayers.clear(); // 🔧 Clear tracking
     console.log("🗑️ PlatformerNetworkHandler cleaned up.");
   }

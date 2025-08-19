@@ -11,8 +11,31 @@ export class Player extends Schema {
   @colyseusTypeAny("number") y: number = 0;
   @colyseusTypeAny("string") animState: string = "idle";
   @colyseusTypeAny("boolean") flipX: boolean = false;
+  @colyseusTypeAny("string") username: string = "Player"; // <-- THÊM MỚI
+
+  // <-- THÊM CÁC TRƯỜNG MỚI (PHẢI GIỐNG HỆT SERVER) -->
+  @colyseusTypeAny("boolean") isGrabbed: boolean = false;
+  @colyseusTypeAny("string") grabbedBy: string = "";
+  @colyseusTypeAny("string") isGrabbing: string = "";
+  @colyseusTypeAny("number") escapeProgress: number = 0;
+}
+
+// THÊM MỚI: Schema để định nghĩa trạng thái của một block có thể biến mất
+export class DisappearingBlock extends Schema {
+  @colyseusTypeAny("number") x: number = 0; // Tọa độ tile X
+  @colyseusTypeAny("number") y: number = 0; // Tọa độ tile Y
+
+  // Trạng thái của block:
+  // 'idle': Bình thường, có thể va chạm.
+  // 'triggered': Bị người chơi chạm, đang chuẩn bị biến mất (dùng để client chạy hiệu ứng rung).
+  // 'gone': Đã biến mất, không thể va chạm.
+  @colyseusTypeAny("string") state: string = "idle";
 }
 
 export class GameRoomState extends Schema {
   @colyseusTypeAny({ map: Player }) players = new MapSchema<Player>();
+
+  // THÊM MỚI: Một Map để lưu trạng thái của tất cả các block biến mất trong phòng.
+  // Key của map sẽ là ID duy nhất của block (ví dụ: "10_15").
+  @colyseusTypeAny({ map: DisappearingBlock }) disappearingBlocks = new MapSchema<DisappearingBlock>();
 }
