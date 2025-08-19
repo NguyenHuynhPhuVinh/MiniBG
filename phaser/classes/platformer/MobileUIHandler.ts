@@ -33,16 +33,12 @@ export class MobileUIHandler {
     this.container.setScrollFactor(0);
     this.container.setDepth(10000);
 
-    // Kích thước và vị trí responsive theo màn hình
-    const BOTTOM_MARGIN = -60; // chỉ dùng cho trục Y (đáy)
-    const LEFT_MARGIN = -16; // lề trái cố định theo trục X
-    const RIGHT_MARGIN = -16; // lề phải cố định theo trục X
-    const SPACING = 16; // khoảng cách giữa các nút
-    const size = Math.max(56, Math.min(96, Math.floor(height * 0.08))); // nút nhỏ hơn
-
-    const baseY = height - BOTTOM_MARGIN - size / 2; // chỉ ảnh hưởng trục Y
-    const leftX = LEFT_MARGIN + size / 2; // không phụ thuộc BOTTOM_MARGIN
-    const rightX = leftX + size + SPACING;
+    // Lấy cấu hình layout theo hướng màn hình
+    const cfg = this.getLayoutConfig();
+    const size = cfg.size;
+    const baseY = height - cfg.bottom - size / 2; // chỉ ảnh hưởng trục Y
+    const leftX = cfg.left + size / 2; // không phụ thuộc bottom
+    const rightX = leftX + size + cfg.spacing;
 
     // --- Nút di chuyển ---
     const dpadLeft = this.createButton("dpad_left", leftX, baseY, "left");
@@ -51,9 +47,9 @@ export class MobileUIHandler {
     dpadRight.setDisplaySize(size, size).setScrollFactor(0).setDepth(10001);
 
     // --- Nút hành động (xếp dọc ở góc phải): jump dưới, grab trên ---
-    const actionX = width - RIGHT_MARGIN - size / 2; // không phụ thuộc BOTTOM_MARGIN
+    const actionX = width - cfg.right - size / 2; // không phụ thuộc bottom
     const jumpY = baseY; // dưới
-    const grabY = baseY - size - SPACING; // trên
+    const grabY = baseY - size - cfg.spacing; // trên
     const jumpButton = this.createButton("button_jump", actionX, jumpY, "jump");
     jumpButton.setDisplaySize(size, size).setScrollFactor(0).setDepth(10001);
     const grabButton = this.createButton("button_grab", actionX, grabY, "grab");
@@ -98,15 +94,14 @@ export class MobileUIHandler {
 
   private reposition(): void {
     const { width, height } = this.scene.cameras.main;
-    const MARGIN = 6;
-    const SPACING = 16;
-    const size = Math.max(56, Math.min(96, Math.floor(height * 0.1)));
-    const baseY = height - MARGIN - size / 2;
-    const leftX = MARGIN + size / 2;
-    const rightX = leftX + size + SPACING;
-    const actionX = width - MARGIN - size / 2;
+    const cfg = this.getLayoutConfig();
+    const size = cfg.size;
+    const baseY = height - cfg.bottom - size / 2;
+    const leftX = cfg.left + size / 2;
+    const rightX = leftX + size + cfg.spacing;
+    const actionX = width - cfg.right - size / 2;
     const jumpY = baseY;
-    const grabY = baseY - size - SPACING;
+    const grabY = baseY - size - cfg.spacing;
 
     const children = this.container.list as Phaser.GameObjects.Image[];
     if (children.length >= 4) {
@@ -116,6 +111,40 @@ export class MobileUIHandler {
       jumpButton.setPosition(actionX, jumpY).setDisplaySize(size, size);
       grabButton.setPosition(actionX, grabY).setDisplaySize(size, size);
     }
+  }
+
+  // Xác định layout theo hướng màn hình
+  private getLayoutConfig(): {
+    size: number;
+    bottom: number;
+    left: number;
+    right: number;
+    spacing: number;
+  } {
+    const cam = this.scene.cameras.main;
+    const isLandscape = cam.width >= cam.height;
+
+    if (isLandscape) {
+      // Màn hình ngang: nút to và cách đáy hơn một chút
+      const size = Math.max(80, Math.min(140, Math.floor(cam.height * 0.18)));
+      return {
+        size,
+        bottom: 14,
+        left: 18,
+        right: 18,
+        spacing: 18,
+      };
+    }
+
+    // Màn hình dọc: nhỏ gọn, sát đáy hơn
+    const size = Math.max(56, Math.min(110, Math.floor(cam.height * 0.1)));
+    return {
+      size,
+      bottom: 6,
+      left: 16,
+      right: 16,
+      spacing: 16,
+    };
   }
 
   public show(): void {
