@@ -37,6 +37,7 @@ const TestGameWrapper: React.FC<TestGameWrapperProps> = ({
   const [loadingState, setLoadingState] = useState({
     isVisible: true,
     sceneName: sceneToLaunch,
+    isReady: false,
   });
 
   useLayoutEffect(() => {
@@ -108,21 +109,39 @@ const TestGameWrapper: React.FC<TestGameWrapperProps> = ({
     };
 
     const handleSceneLoadingStart = (data: { sceneName: string }) => {
-      setLoadingState({ isVisible: true, sceneName: data.sceneName });
+      setLoadingState({
+        isVisible: true,
+        sceneName: data.sceneName,
+        isReady: false,
+      });
     };
 
     const handleUserStart = () => {
+      console.log(
+        "🎮 Test Wrapper: User started game, hiding loading overlay."
+      );
       setLoadingState((prev) => ({ ...prev, isVisible: false }));
+    };
+
+    // THÊM LISTENER MỚI:
+    // Đây là listener DUY NHẤT được phép ẩn loading overlay
+    const handlePlayerReady = () => {
+      console.log(
+        "✅ Received player-ready-and-visible, enabling start button."
+      );
+      setLoadingState((prev) => ({ ...prev, isReady: true }));
     };
 
     EventBus.on("manual-quiz-trigger", handleQuizTrigger);
     EventBus.on("scene-loading-start", handleSceneLoadingStart);
     EventBus.on("scene-loading-user-start", handleUserStart);
+    EventBus.on("player-ready-and-visible", handlePlayerReady);
 
     return () => {
       EventBus.removeListener("manual-quiz-trigger", handleQuizTrigger);
       EventBus.removeListener("scene-loading-start", handleSceneLoadingStart);
       EventBus.removeListener("scene-loading-user-start", handleUserStart);
+      EventBus.removeListener("player-ready-and-visible", handlePlayerReady);
     };
   }, [onGameEnd]);
 
@@ -135,6 +154,7 @@ const TestGameWrapper: React.FC<TestGameWrapperProps> = ({
       <SceneLoadingOverlay
         isVisible={loadingState.isVisible}
         sceneName={loadingState.sceneName} // Truyền sceneName vào
+        isReady={loadingState.isReady}
       />
       <MinigameOverlay isVisible={!loadingState.isVisible} />
     </div>

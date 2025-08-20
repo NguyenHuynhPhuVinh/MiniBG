@@ -32,6 +32,7 @@ const QuizGameWrapper: React.FC<QuizGameWrapperProps> = ({ quizId, user }) => {
 
   // THÊM MỚI: State để lưu tên scene đang được tải
   const [loadingSceneName, setLoadingSceneName] = useState("");
+  const [isGameEngineReady, setIsGameEngineReady] = useState(false);
 
   // Game progress tracking
   const [totalRounds] = useState(4);
@@ -119,6 +120,7 @@ const QuizGameWrapper: React.FC<QuizGameWrapperProps> = ({ quizId, user }) => {
       console.log("Wrapper received scene-loading-start with data:", data);
       setLoadingSceneName(data.sceneName); // <-- Lưu tên scene
       setShowSceneLoading(true); // <-- Ra lệnh hiển thị
+      setIsGameEngineReady(false); // reset flag mỗi scene mới
     };
     EventBus.on("scene-loading-start", handleSceneLoadingStart);
 
@@ -127,13 +129,23 @@ const QuizGameWrapper: React.FC<QuizGameWrapperProps> = ({ quizId, user }) => {
     //   setShowSceneLoading(false);
     // });
 
-    // Chỉ ẩn khi user nhấn nút bắt đầu
+    // Khi người dùng nhấn bắt đầu: ẩn overlay, scene sẽ tự resume qua EventBus
     const handleUserStart = () => {
+      console.log("🎮 Wrapper: User started game, hiding loading overlay.");
       setShowSceneLoading(false);
-      setLoadingSceneName(""); // <-- Reset tên scene khi người dùng bắt đầu
-      console.log("🎮 User started game, hiding scene loading overlay");
+      setLoadingSceneName("");
     };
     EventBus.on("scene-loading-user-start", handleUserStart);
+
+    // THÊM LISTENER MỚI:
+    // Thông báo game đã sẵn sàng, kích hoạt nút bắt đầu
+    const handlePlayerReady = () => {
+      console.log(
+        "✅ Wrapper: Received player-ready-and-visible. Enabling start button."
+      );
+      setIsGameEngineReady(true);
+    };
+    EventBus.on("player-ready-and-visible", handlePlayerReady);
 
     // Quiz completion giờ được handle bởi QuizRoundOverlay
 
@@ -145,6 +157,7 @@ const QuizGameWrapper: React.FC<QuizGameWrapperProps> = ({ quizId, user }) => {
       EventBus.removeListener("quiz-completed");
       EventBus.removeListener("scene-loading-start", handleSceneLoadingStart);
       EventBus.removeListener("scene-loading-user-start", handleUserStart);
+      EventBus.removeListener("player-ready-and-visible", handlePlayerReady); // cleanup
     };
   }, [quizData, router]);
 
@@ -325,6 +338,7 @@ const QuizGameWrapper: React.FC<QuizGameWrapperProps> = ({ quizId, user }) => {
       <SceneLoadingOverlay
         isVisible={showSceneLoading}
         sceneName={loadingSceneName}
+        isReady={isGameEngineReady}
       />
 
       {/* Minigame Overlay - Hiển thị điểm và thời gian */}

@@ -608,15 +608,23 @@ export abstract class BasePlatformerScene extends BaseGameScene {
       this.networkManager
     );
 
+    // 🔧 Kiểm tra xem player có được tạo thành công không
+    if (!this.player) {
+      console.error(`❌ Failed to create player in ${this.scene.key}`);
+      return;
+    }
+
     // Sau khi tạo xong, gửi một bản cập nhật vị trí lên server ngay lập tức
     // để các người chơi khác thấy đúng vị trí của bạn.
     const sprite = this.player.getSprite();
-    this.networkManager.sendUpdate({
-      x: Math.round(sprite.x),
-      y: Math.round(sprite.y),
-      animState: "idle",
-      flipX: false,
-    });
+    if (sprite) {
+      this.networkManager.sendUpdate({
+        x: Math.round(sprite.x),
+        y: Math.round(sprite.y),
+        animState: "idle",
+        flipX: false,
+      });
+    }
 
     // THÊM MỚI: Setup collision đơn giản
     this.setupSimplePlayerCollision();
@@ -630,6 +638,23 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     console.log(
       `✅ Main player created successfully at correct map position: ${spawnPoint.x}, ${spawnPoint.y}`
     );
+
+    // BƯỚC QUAN TRỌNG: Phát ra sự kiện báo cho UI biết game đã thực sự sẵn sàng
+    EventBus.emit("player-ready-and-visible", { sceneKey: this.scene.key });
+    console.log(`📢 Emitted player-ready-and-visible event!`);
+
+    // UX: Tạm dừng scene cho đến khi người chơi thật sự sẵn sàng
+    console.log(
+      `⏸️ ${this.SCENE_NAME}: Pausing scene, waiting for user to start.`
+    );
+    this.scene.pause();
+
+    // Chỉ lắng nghe một lần để tiếp tục khi người chơi nhấn bắt đầu
+    const resumeGame = () => {
+      console.log(`▶️ ${this.SCENE_NAME}: Resuming scene on user start.`);
+      this.scene.resume();
+    };
+    EventBus.once("scene-loading-user-start", resumeGame);
   }
 
   /**

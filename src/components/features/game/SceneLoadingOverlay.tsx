@@ -27,6 +27,7 @@ interface SceneLoadingOverlayProps {
   isVisible?: boolean;
   className?: string;
   sceneName?: string; // <-- Sửa thành optional để tránh lỗi khi không truyền
+  isReady?: boolean; // Game engine đã sẵn sàng, chờ người chơi
 }
 
 interface LoadingState {
@@ -155,6 +156,7 @@ export const SceneLoadingOverlay: React.FC<SceneLoadingOverlayProps> = ({
   isVisible = false,
   className = "",
   sceneName = "", // <-- Thêm giá trị mặc định
+  isReady = false,
 }) => {
   const [loadingState, setLoadingState] = useState<LoadingState>({
     isLoading: false,
@@ -414,8 +416,8 @@ export const SceneLoadingOverlay: React.FC<SceneLoadingOverlayProps> = ({
               </button>
             </div>
 
-            {/* Start button - chỉ hiện khi loading complete */}
-            {loadingState.isComplete && (
+            {/* Start button - chỉ hiện khi game đã sẵn sàng về kỹ thuật */}
+            {isReady && (
               <button
                 onClick={handleStartGame}
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -430,8 +432,8 @@ export const SceneLoadingOverlay: React.FC<SceneLoadingOverlayProps> = ({
 
       {/* Bottom left - Loading và thông tin */}
       <div className="absolute bottom-6 left-6 flex items-center gap-4">
-        {/* Loading spinner */}
-        {!loadingState.isComplete && (
+        {/* Loading spinner - ẩn khi game đã sẵn sàng */}
+        {!isReady && (
           <div className="flex items-center gap-3">
             <div className="animate-spin rounded-full h-8 w-8 border-2 border-muted border-t-primary" />
             <div className="text-sm text-muted-foreground font-medium">
@@ -454,8 +456,8 @@ export const SceneLoadingOverlay: React.FC<SceneLoadingOverlayProps> = ({
         </div>
       </div>
 
-      {/* Progress bar - bottom */}
-      {!loadingState.isComplete && (
+      {/* Progress bar - bottom - ẩn khi game đã sẵn sàng */}
+      {!isReady && (
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-muted">
           <div
             className="h-full bg-primary transition-all duration-500 ease-out"
