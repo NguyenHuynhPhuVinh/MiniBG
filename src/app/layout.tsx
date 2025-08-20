@@ -17,13 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Synlearnia",
-  description: "Nền tảng học tập và thi trực tuyến thông minh.",
-  icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
-  },
+  title: "TestGameOnline",
+  description: "TestGameOnline",
 };
 
 export default function RootLayout({
