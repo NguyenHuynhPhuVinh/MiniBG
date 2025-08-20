@@ -68,6 +68,9 @@ export class Player {
   // THÊM MỚI: Cờ để tránh gọi respawn nhiều lần
   private isDead: boolean = false;
 
+  // THÊM MỚI: Cooldown cho hành động nhảy để tránh spam nhảy trên đầu người chơi khác
+  private jumpCooldown: number = 0;
+
   // <-- THÊM CÁC BIẾN TRẠNG THÁI MỚI CHO TÍNH NĂM VÀ THOÁT -->
   public playerState: PlayerStateSchema | null = null; // Lưu state từ server
   private struggleCooldown = 0; // Để tránh spam server
@@ -496,15 +499,18 @@ export class Player {
         }
       }
 
-      // SỬA ĐỔI 2: Xử lý input NHẢY
-      // Khóa nhảy khi có hiệu ứng cấm.
+      // SỬA ĐỔI 2: Xử lý input NHẢY với COOLDOWN (tránh spam nhảy trên đầu người chơi khác)
+      // Khóa nhảy khi có hiệu ứng cấm hoặc đang trong cooldown
       if (
         !this.hasStatusEffect("no_jump") &&
         inputState.jump &&
-        body.blocked.down
+        body.blocked.down &&
+        this.scene.time.now > this.jumpCooldown
       ) {
         body.setVelocityY(-this.config.physics.jumpPower);
         this.scene.sound.play("jump");
+        // Đặt lại cooldown sau khi nhảy
+        this.jumpCooldown = this.scene.time.now + 300; // 300ms
       }
 
       // ========================== KẾT THÚC SỬA ĐỔI ==========================

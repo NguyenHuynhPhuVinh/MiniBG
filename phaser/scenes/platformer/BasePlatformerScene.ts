@@ -708,7 +708,7 @@ export abstract class BasePlatformerScene extends BaseGameScene {
       // Áp dụng lực giật ngược (recoil)
       mainPlayerBody.velocity.x *= this.IMPACT_RECOIL_FACTOR;
       mainPlayerBody.velocity.y *= this.IMPACT_RECOIL_FACTOR;
-      this.cameraManager.shake(0.008, 120);
+      //this.cameraManager.shake(0.008, 120);
 
       // Cho đi xuyên qua để tránh kẹt lại ngay sau va chạm mạnh
       return false;

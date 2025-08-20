@@ -1,8 +1,14 @@
 /**
- * 🎯 INTERPOLATION UTILS - "Chuyên gia" về Nội suy dựa trên Vận tốc
+ * 🎯 INTERPOLATION UTILS - "Chuyên gia" về Hiệu chỉnh Vị trí bằng Vận tốc
  *
- * Cung cấp một hàm duy nhất để xử lý logic nội suy một cách nhất quán
- * cho bất kỳ đối tượng vật lý nào (người chơi chính, remote players, AI, etc.).
+ * Mục đích: Di chuyển một đối tượng đến vị trí mục tiêu một cách mượt mà bằng cách
+ * điều chỉnh vận tốc (positional correction). Rất phù hợp cho LOCAL player khi
+ * cần bám theo vị trí do server quyết định (ví dụ: đang bị nắm), tránh teleport.
+ *
+ * KHÁC VỚI EntityInterpolator:
+ * - Không dùng bộ đệm thời gian, không render trễ.
+ * - Mỗi lần chỉ "đuổi theo" một vị trí mục tiêu duy nhất tại thời điểm hiện tại.
+ * - Dùng cho local authority correction; còn remote players nên dùng EntityInterpolator.
  */
 export class InterpolationUtils {
   // --- Các hằng số nội suy được quản lý tập trung tại đây ---

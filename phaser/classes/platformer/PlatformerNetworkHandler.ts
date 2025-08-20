@@ -8,7 +8,14 @@ import {
 import { BasePlatformerScene } from "../../scenes/platformer/BasePlatformerScene";
 import { AnimationManager, AnimationState } from "./AnimationManager";
 import { TextUtils } from "../../utils/TextUtils";
-import { InterpolationUtils } from "../../utils/InterpolationUtils";
+import { EntityInterpolator } from "../../utils/EntityInterpolator";
+
+interface RemotePlayerData {
+  sprite: Phaser.Physics.Arcade.Sprite;
+  interpolator: EntityInterpolator;
+  animManager: AnimationManager;
+  nameTag: Phaser.GameObjects.Text;
+}
 
 /**
  * 📡 PLATFORMER NETWORK HANDLER - Chuyên gia Xử lý Multiplayer
@@ -29,11 +36,7 @@ export class PlatformerNetworkHandler {
 
   // THAY ĐỔI: Chuyển remotePlayerSprites thành một Group
   private remotePlayersGroup!: Phaser.Physics.Arcade.Group;
-  private remotePlayerSprites: Map<string, Phaser.Physics.Arcade.Sprite> =
-    new Map();
-  private remotePlayerAnims: Map<string, AnimationManager> = new Map();
-  private remotePlayerNameTags: Map<string, Phaser.GameObjects.Text> =
-    new Map(); // <-- THÊM MỚI
+  private remotePlayers: Map<string, RemotePlayerData> = new Map();
 
   // 🔧 Track created players để tránh duplicates
   private createdPlayers: Set<string> = new Set();
@@ -68,11 +71,8 @@ export class PlatformerNetworkHandler {
   public getSessionIdBySprite(
     sprite: Phaser.Physics.Arcade.Sprite
   ): string | null {
-    for (const [
-      sessionId,
-      remoteSprite,
-    ] of this.remotePlayerSprites.entries()) {
-      if (remoteSprite === sprite) {
+    for (const [sessionId, data] of this.remotePlayers.entries()) {
+      if (data.sprite === sprite) {
         return sessionId;
       }
     }
@@ -171,18 +171,11 @@ export class PlatformerNetworkHandler {
    * Được gọi mỗi frame từ scene để nội suy chuyển động của người chơi khác.
    */
   public update(): void {
-    // Nội suy remote players
-    this.remotePlayerSprites.forEach((sprite, sessionId) => {
-      const target_x = sprite.getData("target_x");
-      const target_y = sprite.getData("target_y");
-      if (typeof target_x !== "number" || typeof target_y !== "number") {
-        return;
-      }
-      InterpolationUtils.updateVelocity(sprite, { x: target_x, y: target_y });
-      const nameTag = this.remotePlayerNameTags.get(sessionId);
-      if (nameTag) {
-        nameTag.x = sprite.x;
-        nameTag.y = sprite.y - 60;
+    this.remotePlayers.forEach((data) => {
+      const pos = data.interpolator.update();
+      if (pos) {
+        data.sprite.setPosition(pos.x, pos.y);
+        data.nameTag.setPosition(pos.x, pos.y - 60);
       }
     });
 
@@ -279,8 +272,6 @@ export class PlatformerNetworkHandler {
       // Thêm hiệu ứng fade in cho name tag
       TextUtils.fadeInText(nameTag, 300);
 
-      this.remotePlayerNameTags.set(sessionId, nameTag); // Lưu lại name tag
-
       // BẬT va chạm với nền đất và cấu hình body để dùng nội suy velocity
       this.scene.physics.add.collider(entity, this.platformsLayer);
       const body = entity.body as Phaser.Physics.Arcade.Body;
@@ -292,33 +283,31 @@ export class PlatformerNetworkHandler {
       body.setOffset(40, 48);
       this.remotePlayersGroup.add(entity);
 
-      this.remotePlayerSprites.set(sessionId, entity);
-      this.remotePlayerAnims.set(
-        sessionId,
-        new AnimationManager(this.scene, entity, characterData)
+      const animManager = new AnimationManager(
+        this.scene,
+        entity,
+        characterData
       );
 
-      // Gắn dữ liệu mục tiêu ban đầu
-      entity.setData("target_x", playerState.x);
-      entity.setData("target_y", playerState.y);
+      const remoteData: RemotePlayerData = {
+        sprite: entity,
+        interpolator: new EntityInterpolator(),
+        animManager,
+        nameTag,
+      };
+      // seed first snapshot to avoid null on first frames
+      remoteData.interpolator.addSnapshot(playerState.x, playerState.y);
+      this.remotePlayers.set(sessionId, remoteData);
 
       // Lắng nghe thay đổi trạng thái của người chơi này từ server
       const $: any = getStateCallbacks(this.room!);
       ($ as any)(playerState).onChange(() => {
-        // CẬP NHẬT DỮ LIỆU ĐỂ HÀM UPDATE() SỬ DỤNG
-        entity.setData("target_x", playerState.x);
-        entity.setData("target_y", playerState.y);
-        entity.setData("isGrabbed", playerState.isGrabbed); // <-- Thêm dòng này
-
-        // Cập nhật username nếu nó thay đổi (hiếm nhưng nên có)
-        const nameTag = this.remotePlayerNameTags.get(sessionId);
-        if (nameTag) {
-          nameTag.setText(playerState.username);
-        }
-
-        const animManager = this.remotePlayerAnims.get(sessionId);
-        animManager?.playAnimation(playerState.animState as AnimationState);
-        entity.setFlipX(playerState.flipX);
+        const data = this.remotePlayers.get(sessionId);
+        if (!data) return;
+        data.interpolator.addSnapshot(playerState.x, playerState.y);
+        data.nameTag.setText(playerState.username);
+        data.animManager.playAnimation(playerState.animState as AnimationState);
+        data.sprite.setFlipX(playerState.flipX);
       });
     }
   };
@@ -332,24 +321,12 @@ export class PlatformerNetworkHandler {
     playerState: PlayerStateSchema,
     sessionId: string
   ) => {
-    const entity = this.remotePlayerSprites.get(sessionId);
-    if (entity) {
-      // THAY ĐỔI: Xóa khỏi group
-      this.remotePlayersGroup.remove(entity, true, true);
-      this.remotePlayerSprites.delete(sessionId);
-    }
-
-    const animManager = this.remotePlayerAnims.get(sessionId);
-    if (animManager) {
-      animManager.destroy();
-      this.remotePlayerAnims.delete(sessionId);
-    }
-
-    // THÊM MỚI: Destroy name tag
-    const nameTag = this.remotePlayerNameTags.get(sessionId);
-    if (nameTag) {
-      nameTag.destroy();
-      this.remotePlayerNameTags.delete(sessionId);
+    const data = this.remotePlayers.get(sessionId);
+    if (data) {
+      this.remotePlayersGroup.remove(data.sprite, true, true);
+      data.animManager.destroy();
+      data.nameTag.destroy();
+      this.remotePlayers.delete(sessionId);
     }
 
     // THÊM MỚI: Destroy debug hitbox
@@ -365,7 +342,7 @@ export class PlatformerNetworkHandler {
   public getRemoteSprite(
     sessionId: string
   ): Phaser.Physics.Arcade.Sprite | undefined {
-    return this.remotePlayerSprites.get(sessionId);
+    return this.remotePlayers.get(sessionId)?.sprite;
   }
 
   /**
@@ -379,8 +356,13 @@ export class PlatformerNetworkHandler {
     let closestPlayer: { sessionId: string; distance: number } | null = null;
     let minDistance = maxDistance;
 
-    this.remotePlayerSprites.forEach((sprite, sessionId) => {
-      const distance = Phaser.Math.Distance.Between(x, y, sprite.x, sprite.y);
+    this.remotePlayers.forEach((data, sessionId) => {
+      const distance = Phaser.Math.Distance.Between(
+        x,
+        y,
+        data.sprite.x,
+        data.sprite.y
+      );
       if (distance < minDistance) {
         minDistance = distance;
         closestPlayer = { sessionId, distance };
@@ -399,9 +381,7 @@ export class PlatformerNetworkHandler {
 
     // THAY ĐỔI: Dọn dẹp group
     this.remotePlayersGroup.clear(true, true);
-    this.remotePlayerSprites.clear();
-    this.remotePlayerAnims.clear();
-    this.remotePlayerNameTags.clear(); // <-- THÊM MỚI
+    this.remotePlayers.clear();
 
     // Dọn dẹp bombs (Matter + proxy)
     this.bombMatterSprites.forEach((s) => s.destroy());
