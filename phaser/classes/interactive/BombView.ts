@@ -11,6 +11,9 @@ export class BombView implements IInteractiveObjectView {
   private proxy?: Phaser.Physics.Arcade.Sprite;
   private stateRef: any;
 
+  // Only shake camera for local client near explosion
+  private readonly SHAKE_RADIUS = 400;
+
   constructor(id: string) {
     this.id = id;
   }
@@ -60,6 +63,20 @@ export class BombView implements IInteractiveObjectView {
     const $: any = getStateCallbacks(room);
     ($ as any)(networkState).onChange(() => {
       if (networkState.state === "exploding" && bombSprite.active) {
+        const localPlayer = (this.scene as any).getPlayer?.();
+        const localSprite = localPlayer?.getSprite?.();
+        if (localSprite) {
+          const d = Phaser.Math.Distance.Between(
+            localSprite.x,
+            localSprite.y,
+            bombSprite.x,
+            bombSprite.y
+          );
+          if (d <= this.SHAKE_RADIUS) {
+            (this.scene as any).cameraManager?.shake(0.015, 250);
+          }
+        }
+
         this.playExplosionEffect(bombSprite.x, bombSprite.y);
         bombSprite.destroy();
         proxy.destroy();
@@ -155,6 +172,5 @@ export class BombView implements IInteractiveObjectView {
         }
       },
     });
-    (this.scene as any).cameraManager?.shake(0.015, 250);
   }
 }
