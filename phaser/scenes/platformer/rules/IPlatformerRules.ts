@@ -15,6 +15,12 @@ export interface IPlatformerRules {
   initialize(scene: BasePlatformerScene, minigameCore: MinigameCore): void;
 
   /**
+   * THÊM MỚI: Được gọi mỗi frame từ game loop của Scene.
+   * Cho phép Rules áp dụng các hiệu ứng liên tục như gió, trượt băng...
+   */
+  update(): void;
+
+  /**
    * Xử lý logic khi một vật phẩm có thể thu thập được va chạm.
    * @param tile Tile của vật phẩm.
    * @param scene Tham chiếu đến scene để có thể gọi âm thanh và effects.

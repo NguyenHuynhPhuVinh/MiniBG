@@ -133,10 +133,10 @@ export class RoundManager {
 
     // Sử dụng seeded scene selector để chọn scenes cho 4 vòng
     const selectedScenes = this.sceneSelector?.selectScenesForRounds(4) || [
-      "ForestScene",
-      "DesertScene",
-      "ForestScene",
-      "DesertScene",
+      "OriginValleyScene",
+      "TempestPeakScene",
+      "OriginValleyScene",
+      "TempestPeakScene",
     ];
 
     console.log(`🎲 Quiz seed: ${this.quizSeed.substring(0, 50)}...`);

@@ -13,3 +13,4 @@ export * from "./InputManager";
 export * from "./Player";
 export * from "./PlatformerNetworkHandler";
 export * from "./MobileUIHandler";
+export * from "./behaviors";

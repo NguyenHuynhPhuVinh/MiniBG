@@ -1,6 +1,7 @@
 import { Player, InputManager, CameraManager } from "../../classes";
 import { BasePlatformerScene } from "./BasePlatformerScene";
 import { PlatformerLogicCore } from "./PlatformerLogicCore";
+import { TileBehaviorFactory } from "../../classes/platformer/behaviors";
 
 /**
  * 👤 PLATFORMER PLAYER HANDLER - Chuyên gia về Người chơi
@@ -25,12 +26,10 @@ export class PlatformerPlayerHandler {
   // Trạng thái cho cơ chế cát lún
   private onSinkingSandThisFrame: boolean = false;
   private sinkingSandTimer: number = 0; // ms đã đứng trên cát
-  private readonly SINK_TIME_LIMIT: number = 100; // 2 giây
-  private readonly SINK_SPEED: number = 1; // px/giây
-  private platformsLayerRef?: Phaser.Tilemaps.TilemapLayer; // tham chiếu layer để quy đổi toạ độ
 
   constructor(scene: BasePlatformerScene) {
     this.scene = scene;
+    (this.scene as any).playerHandler = this;
   }
 
   /**
@@ -105,48 +104,74 @@ export class PlatformerPlayerHandler {
       "🏗️ Platform collision configured for tiles with 'collides: true'"
     );
 
-    // Lưu lại tham chiếu layer để dùng trong process callback
-    this.platformsLayerRef = platformsLayer;
-
-    // 2) Collider CHUNG: chặn va chạm với nền đất cứng, LOẠI TRỪ cát lún
+    // 2) Collider CHUNG: chặn va chạm với nền đất cứng, behavior quyết định va chạm
     this.scene.physics.add.collider(
       player.getSprite(),
       platformsLayer,
-      // CollideCallback: xử lý các va chạm đặc biệt (vd: disappearing khi đứng lên)
-      (sprite: any, tile: any) => {
+      // CollideCallback: chuyển tiếp cho Behavior nếu có
+      (_sprite: any, tile: any) => {
         const platformTile = tile as Phaser.Tilemaps.Tile;
-        const body = (sprite as Phaser.Physics.Arcade.Sprite)
-          .body as Phaser.Physics.Arcade.Body;
-        if (
-          platformTile.properties.type === "disappearing" &&
-          body.blocked.down
-        ) {
-          this.scene.handlePlayerOnPlatformTile(platformTile);
+        const behaviorType = (platformTile.properties as any)
+          .behavior as string;
+        if (behaviorType) {
+          const behavior =
+            TileBehaviorFactory.getInstance().getBehavior(behaviorType);
+          if (behavior) {
+            behavior.onPlayerCollide(platformTile, player, this.scene);
+          }
+        }
+
+        // Collectible vẫn dùng logicCore
+        if ((platformTile.properties as any).type === "collectible") {
+          logicCore.handleTileOverlap(platformTile, platformsLayer, this.scene);
         }
       },
-      // ProcessCallback: bỏ qua cát lún để collider này không xử lý nó
-      (sprite: any, tile: any) => {
+      // ProcessCallback: hỏi Behavior có nên va chạm không
+      (_sprite: any, tile: any) => {
         const platformTile = tile as Phaser.Tilemaps.Tile;
-        return platformTile.properties.platformType !== "sinkingSand";
+        const behaviorType = (platformTile.properties as any)
+          .behavior as string;
+        if (behaviorType) {
+          const behavior =
+            TileBehaviorFactory.getInstance().getBehavior(behaviorType);
+          if (behavior) {
+            return behavior.shouldCollide(platformTile, player, this.scene);
+          }
+        }
+        return true;
       },
       this
     );
 
-    // 2b) Collider RIÊNG: chỉ dành cho cát lún, dùng processCallback để điều khiển va chạm động
-    this.scene.physics.add.collider(
-      player.getSprite(),
-      platformsLayer,
-      undefined,
-      this.processSinkingSandCollision,
-      this
-    );
+    // 2b) Bỏ collider riêng cho cát lún; đã xử lý qua Behavior.shouldCollide
 
-    // 3) Overlap: phát hiện chạm vào các tile có thuộc tính đặc biệt (hazard/collectible…)
+    // 3) Overlap: giữ lại cho các tile không dùng collider cần overlap riêng nếu có
     this.scene.physics.add.overlap(
       player.getSprite(),
       platformsLayer,
-      this.createTileOverlapHandler(logicCore, platformsLayer),
-      this.shouldProcessOverlap,
+      (sprite: any, tile: any) => {
+        const platformTile = tile as Phaser.Tilemaps.Tile;
+        if (!platformTile?.properties) return;
+
+        // Hazard qua behavior
+        const behaviorType = (platformTile.properties as any)
+          .behavior as string;
+        if (behaviorType) {
+          const behavior =
+            TileBehaviorFactory.getInstance().getBehavior(behaviorType);
+          if (behavior) {
+            behavior.onPlayerCollide(platformTile, player, this.scene);
+          }
+        }
+
+        // Collectible vẫn tách riêng qua logicCore
+        if ((platformTile.properties as any).type === "collectible") {
+          logicCore.handleTileOverlap(platformTile, platformsLayer, this.scene);
+        }
+      },
+      (sprite: any, tile: any) => {
+        return !!(tile && (tile as any).properties);
+      },
       this
     );
     console.log(
@@ -154,42 +179,13 @@ export class PlatformerPlayerHandler {
     );
   }
 
-  // Chỉ xử lý overlap nếu tile có properties
-  private shouldProcessOverlap = (sprite: any, tile: any): boolean => {
-    return tile && tile.properties && Object.keys(tile.properties).length > 0;
-  };
+  // API cho SinkingSandBehavior
+  public markOnSinkingSand(): void {
+    this.onSinkingSandThisFrame = true;
+  }
 
-  // Tạo handler có đóng gói tham chiếu logicCore + platformsLayer
-  private createTileOverlapHandler(
-    logicCore: PlatformerLogicCore,
-    platformsLayer: Phaser.Tilemaps.TilemapLayer
-  ) {
-    return (sprite: any, tile: any): void => {
-      const platformTile = tile as Phaser.Tilemaps.Tile;
-
-      // A) Hazard: chết ngay khi chạm
-      if (platformTile.properties.hazard === true) {
-        (this.scene as BasePlatformerScene).handlePlayerDeathByHazard(
-          platformTile
-        );
-        return;
-      }
-
-      // B) Disappearing block: chỉ xử lý khi đang đứng trên tile
-      const body = (sprite as Phaser.Physics.Arcade.Sprite)
-        .body as Phaser.Physics.Arcade.Body;
-      if (
-        platformTile.properties.type === "disappearing" &&
-        body.blocked.down
-      ) {
-        this.scene.handlePlayerOnPlatformTile(platformTile);
-      }
-
-      // C) Collectible: ủy quyền cho LogicCore
-      if (platformTile.properties.type === "collectible") {
-        logicCore.handleTileOverlap(platformTile, platformsLayer, this.scene);
-      }
-    };
+  public getSinkingSandTimer(): number {
+    return this.sinkingSandTimer;
   }
 
   /**
@@ -319,59 +315,13 @@ export class PlatformerPlayerHandler {
     console.log("✅ Player respawned successfully");
   }
 
-  // === SINKING SAND LOGIC ===
-  // Xử lý va chạm với cát lún theo từng frame
-  private processSinkingSandCollision = (sprite: any, tile: any): boolean => {
-    const playerSprite = sprite as Phaser.Physics.Arcade.Sprite;
-    const sandTile = tile as Phaser.Tilemaps.Tile;
-    if (!sandTile || !sandTile.properties) return false;
-
-    // Chỉ xử lý nếu là cát lún
-    if (sandTile.properties.platformType !== "sinkingSand") {
-      return false;
-    }
-
-    const body = playerSprite.body as Phaser.Physics.Arcade.Body;
-
-    // Chỉ xử lý khi người chơi ở phía trên và đang rơi/xuống
-    const layer = this.platformsLayerRef;
-    const tileTop = layer
-      ? layer.tileToWorldY(sandTile.y)
-      : (sandTile as any).pixelY ?? 0; // world top của tile
-    const tolerance = 8; // nới biên để tránh lọt qua khi tiếp đất nhanh
-    const isPlayerAbove = body.bottom <= tileTop + tolerance;
-    const isPlayerFalling = body.velocity.y >= 0;
-
-    if (!isPlayerAbove || !isPlayerFalling) {
-      // Cho phép đi xuyên nếu đi ngang hoặc nhảy từ dưới lên
-      return false;
-    }
-
-    // Đánh dấu đang ở trên cát trong frame này
-    this.onSinkingSandThisFrame = true;
-
-    // Cập nhật timer theo delta time
-    const dt = this.scene.game.loop.delta; // ms
-    this.sinkingSandTimer += dt;
-
-    if (this.sinkingSandTimer < this.SINK_TIME_LIMIT) {
-      // Trong 2 giây đầu: giữ va chạm và cho lún dần
-      const sinkDelta = this.SINK_SPEED * (dt / 1000);
-      playerSprite.y += sinkDelta;
-      return true; // Cho phép va chạm để đứng trên bề mặt cát
-    }
-
-    // Hết thời gian: tắt va chạm để rơi xuyên qua
-    return false;
-  };
-
   // Gọi mỗi frame từ Scene.update(): reset cờ/timer khi rời cát
   public update(): void {
-    if (!this.onSinkingSandThisFrame) {
-      // Không còn ở trên cát: reset bộ đếm
+    if (this.onSinkingSandThisFrame) {
+      this.sinkingSandTimer += this.scene.game.loop.delta;
+    } else {
       this.sinkingSandTimer = 0;
     }
-    // Reset cờ cho frame kế tiếp
     this.onSinkingSandThisFrame = false;
   }
 

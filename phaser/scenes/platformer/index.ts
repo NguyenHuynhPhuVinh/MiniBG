@@ -4,7 +4,7 @@
  * Kiến trúc đa cấp theo dạng chơi (đã tái cấu trúc):
  * - BaseGameScene (Cấp 1): Logic chung nhất cho tất cả minigame
  * - BasePlatformerScene (Cấp 2): Logic chung cho dạng chơi platformer (đã được tinh gọn)
- * - ForestScene, DesertScene (Cấp 3): Scene cụ thể với config riêng
+ * - OriginValleyScene, TempestPeakScene (Cấp 3): Scene cụ thể với config riêng
  * - PlatformerLogicCore: Core logic tách biệt (Composition pattern)
  *
  * CÁC CHUYÊN GIA HELPERS (mới):
@@ -24,8 +24,8 @@ export { PlatformerWorldBuilder } from "./PlatformerWorldBuilder";
 export { PlatformerPlayerHandler } from "./PlatformerPlayerHandler";
 
 // === CONCRETE SCENES ===
-export { ForestScene } from "./ForestScene";
-export { DesertScene } from "./DesertScene";
+export { OriginValleyScene } from "./OriginValleyScene";
+export { TempestPeakScene } from "./TempestPeakScene";
 
 // === TYPE DEFINITIONS ===
 export interface PlatformerSceneConfig {

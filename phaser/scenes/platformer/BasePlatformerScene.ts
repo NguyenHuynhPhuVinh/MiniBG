@@ -23,6 +23,7 @@ import {
   GameRoomState,
   Player as PlayerStateSchema,
 } from "../../classes/core/types/GameRoomState";
+import { IEnvironmentalEffect } from "../../classes/platformer/effects";
 
 /**
  * 🎮 BASE PLATFORMER SCENE - Cấp 2: Lớp cơ sở cho dạng chơi Platformer
@@ -94,6 +95,23 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   // THÊM MỚI: Map để theo dõi state cuối cùng của mỗi block
   private lastBlockStates: Map<string, string> = new Map();
 
+  // THÊM MỚI: Map để lưu trữ các sprite tương tác được tạo bởi WorldBuilder
+  private interactiveTileSprites: Map<string, Phaser.GameObjects.Sprite> =
+    new Map();
+
+  // ======================== THÊM CÁC HẰNG SỐ CHO HỆ THỐNG TRUYỀN LỰC ĐẨY ========================
+  private readonly IMPACT_VELOCITY_THRESHOLD = 500; // Vận tốc tối thiểu để gây ra va chạm (pixels/giây)
+  private readonly IMPACT_RECOIL_FACTOR = -0.4; // Lực giật ngược lại cho người gây va chạm
+  // =========================================================================
+
+  // THÊM MỚI: Dữ liệu lò xo thu thập từ WorldBuilder
+  private springsData: { id: string; x: number; y: number }[] = [];
+
+  // THÊM MỚI: Cờ để đảm bảo đăng ký chỉ xảy ra một lần
+  private hasRegisteredSprings: boolean = false;
+  // THÊM MỚI: Map để theo dõi state cuối cùng của mỗi lò xo
+  private lastSpringStates: Map<string, string> = new Map();
+
   // === STRATEGY PATTERN COMPONENTS ===
   protected rules!: IPlatformerRules; // Bộ quy tắc do subclass chọn
   protected logicCore!: PlatformerLogicCore; // Core logic với rules
@@ -107,6 +125,9 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   private spawnPoint!: { x: number; y: number };
   private lastCheckpoint: { x: number; y: number } | null = null;
   private isRespawning: boolean = false; // Cờ để tránh respawn chồng chéo
+
+  // === ENVIRONMENTAL EFFECTS ===
+  protected environmentalEffect: IEnvironmentalEffect | null = null;
 
   /**
    * 🎬 PRELOAD - Load assets chung và riêng cho platformer
@@ -186,6 +207,32 @@ export abstract class BasePlatformerScene extends BaseGameScene {
       "/kenney_new-platformer-pack-1.0/Sounds/sfx_hurt.ogg"
     );
 
+    // THÊM MỚI: Asset cho bom và vụ nổ (5 ảnh tĩnh)
+    this.load.image(
+      "bomb",
+      "/kenney_new-platformer-pack-1.0/Sprites/Tiles/Default/bomb.png"
+    );
+    this.load.image(
+      "explosion_0",
+      "/kenney_top-down-tanks-redux/PNG/Default size/explosion1.png"
+    );
+    this.load.image(
+      "explosion_1",
+      "/kenney_top-down-tanks-redux/PNG/Default size/explosion2.png"
+    );
+    this.load.image(
+      "explosion_2",
+      "/kenney_top-down-tanks-redux/PNG/Default size/explosion3.png"
+    );
+    this.load.image(
+      "explosion_3",
+      "/kenney_top-down-tanks-redux/PNG/Default size/explosion4.png"
+    );
+    this.load.image(
+      "explosion_4",
+      "/kenney_top-down-tanks-redux/PNG/Default size/explosion5.png"
+    );
+
     // THÊM MỚI: Load assets cho Mobile UI
     this.load.image(
       "dpad_left",
@@ -237,6 +284,9 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     this.hasRegisteredBlocks = false;
     this.originalTiles.clear();
     this.lastBlockStates.clear();
+    this.hasRegisteredSprings = false;
+    this.interactiveTileSprites.clear();
+    this.lastSpringStates.clear();
 
     // 1. Tạo bộ quy tắc do scene con quyết định (Strategy Pattern)
     this.rules = this.createRules();
@@ -257,10 +307,42 @@ export abstract class BasePlatformerScene extends BaseGameScene {
       `🎮 ${this.SCENE_NAME}: Pure LogicCore created with rules only`
     );
 
-    // 5. Dùng chuyên gia để xây dựng thế giới
-    const { platformsLayer, foregroundLayer } = this.worldBuilder.build();
+    // 5. SỬA ĐỔI: Dùng chuyên gia để xây dựng thế giới và nhận lại dữ liệu lò xo
+    const { platformsLayer, foregroundLayer, springsData } =
+      this.worldBuilder.build();
     this.platformsLayer = platformsLayer;
     this.foregroundLayer = foregroundLayer;
+    this.springsData = springsData; // <-- Lưu lại dữ liệu lò xo
+
+    // TỐI ƯU MATTER.JS: Dùng colliders tĩnh từ Object Layer thay vì convert cả tile layer
+    try {
+      const worldDims = this.worldBuilder.getWorldDimensions();
+      this.matter.world.setBounds(0, 0, worldDims.width, worldDims.height);
+
+      const tm = this.worldBuilder.getTilemap();
+      const matterCollidersLayer = tm.getObjectLayer("MatterColliders");
+      if (matterCollidersLayer && Array.isArray(matterCollidersLayer.objects)) {
+        matterCollidersLayer.objects.forEach((obj: any) => {
+          const x = obj.x ?? 0;
+          const y = obj.y ?? 0;
+          const width = obj.width ?? 0;
+          const height = obj.height ?? 0;
+          const cx = x + width / 2;
+          const cy = y + height / 2;
+          this.matter.add.rectangle(cx, cy, width, height, {
+            isStatic: true,
+            label: "Ground",
+          } as any);
+        });
+        console.log(
+          `[Matter.js] Created ${matterCollidersLayer.objects.length} optimized static colliders.`
+        );
+      } else {
+        console.warn(
+          "[Matter.js] 'MatterColliders' object layer not found in Tiled map."
+        );
+      }
+    } catch {}
 
     // Lưu lại điểm spawn ban đầu và reset checkpoint
     this.spawnPoint = this.worldBuilder.findPlayerSpawnPoint();
@@ -338,12 +420,40 @@ export abstract class BasePlatformerScene extends BaseGameScene {
       // THÊM MỚI: Đăng ký các block của map này với server
       this.registerBlocksWithServer();
 
+      // THÊM MỚI: Bắt đầu lắng nghe các thay đổi trạng thái của lò xo
+      this.listenToSpringChanges();
+
+      // THÊM MỚI: Đăng ký các lò xo của map này với server
+      this.registerSpringsWithServer();
+
+      // THÊM MỚI: Gửi vị trí bomb spawners lên server (nếu có)
+      const bombSpawners = this.worldBuilder.findBombSpawners();
+      if (bombSpawners && bombSpawners.length > 0) {
+        this.room.send("registerBombSpawners", bombSpawners);
+        console.log(
+          `[Client] Registered ${bombSpawners.length} bomb spawners with server.`
+        );
+      }
+
       // DEBUG: Kiểm tra room state
       console.log("[Client] Room state after connection:", this.room.state);
       console.log(
         "[Client] DisappearingBlocks in state:",
         this.room.state.disappearingBlocks
       );
+
+      // ======================== THÊM LISTENER CHO LỆNH KNOCKBACK TỪ SERVER ========================
+      this.room.onMessage(
+        "applyKnockback",
+        (message: { forceX: number; forceY: number }) => {
+          // Chỉ player chính mới thực thi lệnh này
+          if (this.player) {
+            console.log(`[Scene] Received applyKnockback command from server.`);
+            this.player.applyKnockback(message.forceX, message.forceY);
+          }
+        }
+      );
+      // =========================================================================
     };
 
     // Đăng ký listener bằng thuộc tính đó
@@ -522,57 +632,126 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     );
   }
 
-  // THÊM MỚI: Setup collision đơn giản - chỉ chặn và cho phép đứng trên đầu
+  /**
+   * THAY ĐỔI LỚN: Tái cấu trúc hoàn toàn logic va chạm giữa các người chơi
+   */
   private setupSimplePlayerCollision(): void {
+    if (!this.player || !this.networkHandler) return;
+
     const mainPlayerSprite = this.player.getSprite();
     const remotePlayersGroup = this.networkHandler.getRemotePlayersGroup();
 
-    // ĐƠN GIẢN: CHỈ CẦN MỘT COLLIDER để chặn va chạm
     this.physics.add.collider(
       mainPlayerSprite,
       remotePlayersGroup,
-      undefined, // Không cần callback phức tạp
-      this.checkCanStandOnTop, // Chỉ kiểm tra có thể đứng trên đầu không
+      undefined, // Không cần callback va chạm cứng
+      this.processPlayerCollision, // Callback điều kiện tối quan trọng
       this
     );
 
-    console.log("🤝 Simple collision enabled: Wall + Platform mode");
+    console.log(
+      "🤝 Advanced player collision enabled with PAIR-SPECIFIC logic."
+    );
   }
 
-  // THÊM MỚI: Kiểm tra đơn giản - chỉ cho phép đứng trên đầu
-  private checkCanStandOnTop = (object1: any, object2: any): boolean => {
-    const obj1 = object1 as any;
-    const obj2 = object2 as any;
+  /**
+   * HÀM NÂNG CẤP: "Bộ não" quyết định va chạm giữa TỪNG CẶP người chơi
+   *
+   * Được gọi mỗi frame khi hai người chơi sắp va chạm.
+   * Trả về `true` để cho phép va chạm (chặn nhau).
+   * Trả về `false` để vô hiệu hóa va chạm (đi xuyên qua nhau).
+   */
+  private processPlayerCollision = (
+    mainPlayerSprite: any,
+    remotePlayerSprite: any
+  ): boolean => {
+    // --- BƯỚC 1: LẤY CÁC THÔNG TIN CẦN THIẾT ---
+    const mainPlayerBody = mainPlayerSprite.body as Phaser.Physics.Arcade.Body;
+    const remoteBody = remotePlayerSprite.body as Phaser.Physics.Arcade.Body;
+    remoteBody.setImmovable(true);
 
-    if (!obj1.body || !obj2.body) {
-      return true; // Mặc định cho phép va chạm
+    const mainPlayerState = this.player.playerState;
+    if (!mainPlayerState || !this.room) {
+      return true;
+    }
+    const remoteSessionId =
+      this.networkHandler.getSessionIdBySprite(remotePlayerSprite);
+    if (!remoteSessionId) {
+      return true;
     }
 
-    const mainPlayerBody = obj1.body as Phaser.Physics.Arcade.Body;
-    const remotePlayerBody = obj2.body as Phaser.Physics.Arcade.Body;
+    // --- BƯỚC 2: KIỂM TRA ƯU TIÊN - CÓ ĐANG NẮM NHAU KHÔNG? ---
+    const isMainPlayerGrabbingThisRemote =
+      mainPlayerState.isGrabbing === remoteSessionId;
+    const isMainPlayerGrabbedByThisRemote =
+      mainPlayerState.grabbedBy === remoteSessionId;
 
-    // Kiểm tra đơn giản: có phải đang nhảy xuống từ trên không?
-    const tolerance = 0;
+    if (isMainPlayerGrabbingThisRemote || isMainPlayerGrabbedByThisRemote) {
+      return false; // Cho phép đi xuyên qua và dừng mọi xử lý phía dưới
+    }
+
+    // --- BƯỚC 3: KIỂM TRA VA CHẠM TỐC ĐỘ CAO ---
+    const currentVelocity = mainPlayerBody.velocity.length();
+    if (currentVelocity > this.IMPACT_VELOCITY_THRESHOLD) {
+      console.log(
+        `💥 IMPACT! Player hit ${remoteSessionId} with velocity ${currentVelocity.toFixed(
+          0
+        )}`
+      );
+
+      this.room.send("playerImpact", {
+        targetSessionId: remoteSessionId,
+        impactX: mainPlayerBody.velocity.x,
+        impactY: mainPlayerBody.velocity.y,
+      });
+
+      // Áp dụng lực giật ngược (recoil)
+      mainPlayerBody.velocity.x *= this.IMPACT_RECOIL_FACTOR;
+      mainPlayerBody.velocity.y *= this.IMPACT_RECOIL_FACTOR;
+      this.cameraManager.shake(0.008, 120);
+
+      // Cho đi xuyên qua để tránh kẹt lại ngay sau va chạm mạnh
+      return false;
+    }
+
+    // --- BƯỚC 4: XỬ LÝ VA CHẠM THÔNG THƯỜNG ---
+    return this.checkCanStandOnTop(mainPlayerSprite, remotePlayerSprite);
+  };
+
+  /**
+   * HÀM CŨ: Được tái sử dụng, chỉ kiểm tra logic đứng trên đầu
+   */
+  private checkCanStandOnTop = (
+    mainPlayerSprite: any,
+    remotePlayerSprite: any
+  ): boolean => {
+    const mainPlayerBody = mainPlayerSprite.body as Phaser.Physics.Arcade.Body;
+    const remotePlayerBody =
+      remotePlayerSprite.body as Phaser.Physics.Arcade.Body;
+
+    if (!mainPlayerBody || !remotePlayerBody) {
+      return true;
+    }
+
+    const tolerance = 5; // Tăng độ dung sai một chút
     const isFallingOnTop =
-      mainPlayerBody.velocity.y > 0 && // Đang rơi xuống
-      mainPlayerBody.bottom <= remotePlayerBody.top + tolerance; // Chân main player gần đầu remote player
+      mainPlayerBody.velocity.y > 0 &&
+      mainPlayerBody.bottom <= remotePlayerBody.top + tolerance;
 
-    // LUÔN LUÔN set immovable = true để remote player như bức tường/platform
-    remotePlayerBody.setImmovable(true);
-
+    // Nếu đang đứng trên đầu, chúng ta cần đảm bảo va chạm chỉ xảy ra từ phía trên
     if (isFallingOnTop) {
-      console.log("👆 Standing on player!");
-    } else {
-      console.log("🧱 Wall collision!");
+      mainPlayerBody.velocity.y = 0; // Ngăn không bị lún xuống
+      return true;
     }
 
-    return true; // Luôn cho phép va chạm để chặn hoặc đứng trên đầu
+    // Các trường hợp khác (va chạm ngang)
+    return true; // Cho phép va chạm như bức tường
   };
 
   // === UPDATE LOOP ===
 
   /**
-   * � UPDATE - Game loop cực kỳ gọn gàng với Network Handler
+   * 🎮 UPDATE - Game loop cực kỳ gọn gàng với Network Handler
    */
   update(): void {
     // Chỉ cần ra lệnh cho các thành phần tự cập nhật
@@ -580,9 +759,26 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     this.networkHandler?.update();
     // THÊM MỚI: Cập nhật trạng thái cát lún cho player handler
     this.playerHandler?.update();
+
+    // THÊM MỚI: Gọi update của bộ luật mỗi frame
+    this.rules?.update();
+
+    // Cập nhật hiệu ứng môi trường nếu có
+    if (this.environmentalEffect && this.player) {
+      this.environmentalEffect.update(this.player);
+    }
   }
 
   // === PUBLIC API - Cho React components ===
+
+  /**
+   * THÊM MỚI: Cung cấp một phương thức công khai để Rules có thể truy cập Player.
+   * Điều này tốt hơn là cho Rules truy cập trực tiếp vào thuộc tính `this.player`.
+   * @returns Player instance hoặc null nếu chưa được tạo.
+   */
+  public getPlayer(): Player | null {
+    return this.player || null;
+  }
 
   /**
    * 📍 GET PLAYER POSITION - API cho React
@@ -672,7 +868,7 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     const blocksData: { id: string; x: number; y: number }[] = [];
 
     this.platformsLayer.forEachTile((tile) => {
-      if (tile && tile.properties.type === "disappearing") {
+      if (tile && (tile.properties as any).behavior === "disappearing") {
         const tileId = `${tile.x}_${tile.y}`;
         blocksData.push({ id: tileId, x: tile.x, y: tile.y });
 
@@ -799,24 +995,7 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   /**
    * SỬA ĐỔI HOÀN TOÀN: Hàm này giờ xử lý nhiều loại tile khác nhau.
    */
-  public handlePlayerOnPlatformTile(tile: Phaser.Tilemaps.Tile): void {
-    // THÊM MỚI: Kiểm tra xem có phải tile nguy hiểm không
-    if (tile.properties.hazard === true) {
-      // Nếu đúng, gọi một phương thức xử lý cái chết riêng
-      this.handlePlayerDeathByHazard(tile);
-      return; // Dừng xử lý các loại tile khác
-    }
-
-    if (tile.properties.type === "disappearing" && this.room) {
-      const tileId = `${tile.x}_${tile.y}`;
-      console.log(`[Client] Player hit disappearing block: ${tileId}`);
-      // Gửi tin nhắn lên server, báo rằng block này đã bị chạm vào.
-      // Server sẽ quyết định xem có nên kích hoạt block hay không (dựa trên trạng thái hiện tại của nó).
-      this.room.send("playerHitBlock", { blockId: tileId });
-      console.log(`[Client] Sent playerHitBlock message for ${tileId}`);
-    }
-    // Logic cho các loại tile khác có thể được thêm vào đây
-  }
+  // Tile-specific interaction methods have been moved to Behavior classes
 
   // === CLEANUP ===
 
@@ -825,6 +1004,10 @@ export abstract class BasePlatformerScene extends BaseGameScene {
    */
   protected cleanupOnShutdown(): void {
     console.log(`🗑️ ${this.SCENE_NAME}: Starting cleanup...`);
+
+    // Dọn dẹp hiệu ứng môi trường nếu có
+    this.environmentalEffect?.cleanup();
+    this.environmentalEffect = null;
 
     // Dọn dẹp Mobile UI Handler
     this.mobileUIHandler?.destroy();
@@ -1188,5 +1371,87 @@ export abstract class BasePlatformerScene extends BaseGameScene {
 
     // 7. Reset cờ
     this.isRespawning = false;
+  }
+
+  /**
+   * THÊM MỚI: API để WorldBuilder có thể thêm các sprite vào map
+   */
+  public addInteractiveTileSprite(
+    id: string,
+    sprite: Phaser.GameObjects.Sprite
+  ): void {
+    this.interactiveTileSprites.set(id, sprite);
+  }
+
+  /**
+   * CẬP NHẬT HOÀN TOÀN: Xử lý va chạm lò xo một cách thông minh, hỗ trợ nhiều hướng.
+   * - Xác định hướng của lò xo (đứng, ngang).
+   * - Kiểm tra hướng người chơi va chạm vào lò xo.
+   * - Áp dụng lực đẩy đúng hướng (lên, trái, phải).
+   */
+  // Spring handling moved to SpringBehavior
+
+  // === LOGIC ĐỒNG BỘ HÓA LÒ XO ===
+
+  /**
+   * THÊM MỚI: Gửi thông tin các lò xo lên server.
+   */
+  private registerSpringsWithServer(): void {
+    if (!this.room || this.hasRegisteredSprings) return;
+
+    if (this.springsData.length > 0) {
+      this.room.send("registerSprings", this.springsData);
+      this.hasRegisteredSprings = true;
+      console.log(
+        `[Client] Registered ${this.springsData.length} springs with server.`
+      );
+    }
+  }
+
+  /**
+   * THÊM MỚI: Lắng nghe và phản hồi các thay đổi trạng thái lò xo từ server.
+   */
+  private listenToSpringChanges(): void {
+    if (!this.room) return;
+    // SỬA LẠI LOG BÊN DƯỚI CHO ĐÚNG
+    console.log("[Client] Setting up spring change listeners...");
+
+    this.room.onStateChange((state: any) => {
+      if (state.springs) {
+        state.springs.forEach((spring: any, springId: string) => {
+          const currentState = spring.state;
+          const lastKnownState = this.lastSpringStates.get(springId);
+
+          if (lastKnownState !== currentState) {
+            this.updateSpringVisuals(springId, currentState);
+            this.lastSpringStates.set(springId, currentState);
+          }
+        });
+      }
+    });
+  }
+
+  /**
+   * THÊM MỚI: Hàm trung tâm để cập nhật hình ảnh của lò xo.
+   */
+  private updateSpringVisuals(springId: string, state: string): void {
+    const springSprite = this.interactiveTileSprites.get(springId);
+    if (!springSprite) return;
+
+    // SỬA DÒNG NÀY: Lấy animKey từ data đã lưu
+    const animKey = springSprite.getData("animKey");
+    if (!animKey) return;
+
+    const animData = this.anims.get(animKey);
+    if (!animData || animData.frames.length < 2) return;
+
+    if (state === "extended") {
+      // Đặt frame là frame thứ 2 (bung ra)
+      springSprite.setFrame(animData.frames[1].frame.name);
+    } else {
+      // state === 'idle'
+      // Đặt frame là frame đầu tiên (nén lại)
+      springSprite.setFrame(animData.frames[0].frame.name);
+    }
   }
 }

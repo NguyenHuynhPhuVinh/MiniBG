@@ -9,6 +9,17 @@ import { TextUtils } from "../../utils/TextUtils"; // <-- THÊM MỚI
 import { BasePlatformerScene } from "../../scenes";
 import { Player as PlayerStateSchema } from "../core/types/GameRoomState"; // Import schema để type hinting
 import { InterpolationUtils } from "../../utils/InterpolationUtils";
+import {
+  IStatusEffect,
+  KnockbackEffect,
+  NoHorizontalMoveEffect,
+  NoJumpEffect,
+  SpringLaunchEffect,
+} from "./effects";
+
+// ======================== THÊM HẰNG SỐ CHO HỆ THỐNG TRUYỀN LỰC ĐẨY ========================
+const KNOCKBACK_FORCE_MULTIPLIER = 0.7; // lực văng
+// ===================================================================
 
 export interface PlayerConfig {
   x: number;
@@ -57,7 +68,7 @@ export class Player {
   // THÊM MỚI: Cờ để tránh gọi respawn nhiều lần
   private isDead: boolean = false;
 
-  // <-- THÊM CÁC BIẾN TRẠNG THÁI MỚI CHO TÍNH NĂNG NẮM VÀ THOÁT -->
+  // <-- THÊM CÁC BIẾN TRẠNG THÁI MỚI CHO TÍNH NĂM VÀ THOÁT -->
   public playerState: PlayerStateSchema | null = null; // Lưu state từ server
   private struggleCooldown = 0; // Để tránh spam server
   private GRAB_DISTANCE_THRESHOLD = 80; // Khoảng cách tối đa để nắm (pixel)
@@ -65,6 +76,21 @@ export class Player {
   // <-- THÊM CÁC THUỘC TÍNH MỚI CHO NỘI SUY DỰA TRÊN VẬN TỐC -->
   private serverTargetPosition: { x: number; y: number } | null = null;
   // (Các hằng số đã gom vào InterpolationUtils)
+
+  // MỚI: Thêm trạng thái để biết khi nào người chơi đang bay lên do lò xo
+  // (được thay thế bằng hệ thống StatusEffect)
+
+  // === SNOW EFFECT STATE ===
+  private originalPhysics!: { speed: number; jumpPower: number };
+  private isOnSnow: boolean = false;
+  private wasOnSnowLastFrame: boolean = false;
+
+  // === STATUS EFFECTS MANAGER ===
+  private activeEffects: Map<string, IStatusEffect> = new Map();
+
+  // MỚI: Các thuộc tính để theo dõi quãng đường rơi
+  private isActivelyFalling: boolean = false;
+  private fallStartHeight: number = 0;
 
   constructor(
     // SỬA ĐỔI: Thay Scene bằng BasePlatformerScene
@@ -109,6 +135,20 @@ export class Player {
     this.setupCamera();
   }
 
+  // THÊM DÒNG NÀY: Lưu lại cấu hình vật lý ban đầu SAU khi this.config được thiết lập
+  // Ghi chú: Đặt sau constructor phần set this.config ở trên
+  // (Được chèn hợp lý trong constructor khi this.config đã có physics)
+  // Initialize original physics baselines
+  // (Keep defaults in case physics is undefined for safety, though config ensures it exists)
+  private initializeOriginalPhysicsOnce(): void {
+    if (!this.originalPhysics) {
+      this.originalPhysics = {
+        speed: this.config.physics.speed,
+        jumpPower: this.config.physics.jumpPower,
+      };
+    }
+  }
+
   // <-- THÊM PHƯƠNG THỨC MỚI -->
   /**
    * Cập nhật trạng thái cục bộ của player từ server.
@@ -129,6 +169,107 @@ export class Player {
     } else {
       this.serverTargetPosition = null;
     }
+  }
+
+  /**
+   * MỚI: Được gọi bởi Scene khi người chơi va chạm với lò xo.
+   * Thay vì cờ boolean, dùng hiệu ứng trạng thái.
+   */
+  public setSpringLaunched(): void {
+    this.addStatusEffect(new SpringLaunchEffect());
+  }
+
+  /**
+   * Cung cấp một phương thức công khai để các hệ thống khác kiểm tra trạng thái.
+   */
+  public getIsSpringLaunched(): boolean {
+    return this.hasStatusEffect("spring_launch");
+  }
+
+  /**
+   * Kích hoạt trạng thái "đang bị đẩy ngang" bằng hiệu ứng (khóa di chuyển ngang/nhảy tạm thời).
+   */
+  public setHorizontallyLaunched(): void {
+    this.addStatusEffect(new NoHorizontalMoveEffect(1500));
+    this.addStatusEffect(new NoJumpEffect(1500));
+  }
+
+  /**
+   * Cung cấp phương thức công khai để Rules có thể kiểm tra trạng thái này.
+   */
+  public getIsHorizontallyLaunched(): boolean {
+    return this.hasStatusEffect("no_horizontal_move");
+  }
+
+  // === SNOW EFFECT API ===
+  /**
+   * ❄️ Áp dụng hiệu ứng đi trên tuyết (chậm và nhảy thấp).
+   */
+  public applySnowEffect(): void {
+    this.initializeOriginalPhysicsOnce();
+    this.config.physics.speed = this.originalPhysics.speed * 0.6;
+    this.config.physics.jumpPower = this.originalPhysics.jumpPower * 0.7;
+  }
+
+  /**
+   * ☀️ Reset các thuộc tính vật lý về trạng thái mặc định.
+   */
+  public resetPhysicsToDefault(): void {
+    this.initializeOriginalPhysicsOnce();
+    this.config.physics.speed = this.originalPhysics.speed;
+    this.config.physics.jumpPower = this.originalPhysics.jumpPower;
+  }
+
+  /**
+   * Cờ cho biết frame hiện tại có đang đứng trên tuyết không.
+   */
+  public setOnSnow(isOnSnow: boolean): void {
+    this.isOnSnow = isOnSnow;
+  }
+
+  /**
+   * Cung cấp phương thức công khai để Rules có thể kiểm tra trạng thái knockback.
+   */
+  public getIsBeingKnockedBack(): boolean {
+    return this.hasStatusEffect("knockback");
+  }
+
+  // ======================== THÊM PHƯƠNG THỨC MỚI CHO HỆ THỐNG TRUYỀN LỰC ĐẨY ========================
+  /**
+   * Áp dụng một lực văng từ bên ngoài (do người chơi khác gây ra).
+   * @param forceX Lực theo trục X.
+   * @param forceY Lực theo trục Y.
+   */
+  public applyKnockback(forceX: number, forceY: number): void {
+    if (!this.sprite || !this.sprite.body) return;
+    const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+
+    console.log(
+      `[Player] Applying knockback force: ${forceX.toFixed(
+        0
+      )}, ${forceY.toFixed(0)}`
+    );
+
+    body.setVelocity(
+      forceX * KNOCKBACK_FORCE_MULTIPLIER,
+      forceY * KNOCKBACK_FORCE_MULTIPLIER
+    );
+
+    // Áp dụng hiệu ứng để vô hiệu hóa điều khiển trong thời gian ngắn
+    this.addStatusEffect(new KnockbackEffect());
+  }
+  // ===================================================================
+
+  /**
+   * MỚI: Cung cấp một phương thức công khai để Scene có thể lấy quãng đường rơi.
+   * @returns Quãng đường đã rơi tính bằng pixel.
+   */
+  public getFallDistance(): number {
+    if (this.isActivelyFalling) {
+      // Trả về quãng đường rơi hiện tại, đảm bảo không âm
+      return Math.max(0, this.sprite.y - this.fallStartHeight);
+    }
+    return 0; // Trả về 0 nếu không đang trong trạng thái rơi
   }
 
   private setupFrames(): void {
@@ -242,6 +383,26 @@ export class Player {
    * 🔄 UPDATE - Logic mới với tính năng nắm và thoát
    */
   public update(): void {
+    // === 1) Cập nhật tất cả Status Effects và dọn dẹp ===
+    const dt = this.scene.game.loop.delta;
+    const finishedEffects: string[] = [];
+    for (const effect of this.activeEffects.values()) {
+      effect.update(dt, this);
+      if (effect.isFinished) finishedEffects.push(effect.id);
+    }
+    finishedEffects.forEach((id) => this.removeStatusEffect(id));
+
+    // === 2) Quản lý hiệu ứng Tuyết theo frame flags ===
+    if (
+      this.wasOnSnowLastFrame &&
+      !this.isOnSnow &&
+      this.hasStatusEffect("snow_slow")
+    ) {
+      this.removeStatusEffect("snow_slow");
+    }
+    this.wasOnSnowLastFrame = this.isOnSnow;
+    this.isOnSnow = false;
+
     if (!this.sprite || !this.sprite.body || this.isDead || !this.playerState)
       return;
 
@@ -260,7 +421,32 @@ export class Player {
       return;
     }
 
+    // --- LOGIC THEO DÕI QUÃNG ĐƯỜNG RƠI MỚI ---
+    const isOnGround = body.blocked.down || body.touching.down;
+
+    // 1. Phát hiện thời điểm BẮT ĐẦU rơi
+    if (!isOnGround && body.velocity.y > 0 && !this.isActivelyFalling) {
+      this.isActivelyFalling = true;
+      this.fallStartHeight = this.sprite.y; // Ghi lại độ cao khi bắt đầu rơi
+      console.log(
+        `FALL TRACKING: Started falling at Y=${this.fallStartHeight.toFixed(0)}`
+      );
+    }
+
+    // 2. Phát hiện thời điểm TIẾP ĐẤT (hoặc va chạm thứ gì đó bên dưới)
+    if (isOnGround && this.isActivelyFalling) {
+      this.isActivelyFalling = false;
+      const fallDistance = this.sprite.y - this.fallStartHeight;
+      console.log(
+        `FALL TRACKING: Landed. Total fall distance: ${fallDistance.toFixed(
+          0
+        )} pixels.`
+      );
+    }
+    // ------------------------------------------
+
     const inputState = this.inputManager.update();
+    // (Các hiệu ứng sẽ tự cập nhật và kết thúc; không còn cần logic reset thủ công)
 
     // =======================================================
     // === LOGIC MỚI: PHÂN TÁCH DỰA TRÊN TRẠNG THÁI isGrabbed ===
@@ -291,45 +477,39 @@ export class Player {
         this.networkManager.room?.send("struggle");
         this.struggleCooldown = this.scene.time.now + 100; // Cooldown 100ms
       }
-    } else if (this.playerState.isGrabbing) {
-      // ----- LOGIC KHI ĐANG NẮM AI ĐÓ -----
-
-      // Di chuyển chậm hơn khi đang nắm người khác
-      const grabSpeed = this.config.physics.speed * 0.7; // Chậm hơn 30%
-
-      if (inputState.left) {
-        body.setVelocityX(-grabSpeed);
-      } else if (inputState.right) {
-        body.setVelocityX(grabSpeed);
-      } else {
-        body.setVelocityX(0);
-      }
-
-      // Không thể nhảy khi đang nắm người khác
-      if (inputState.jump && body.blocked.down) {
-        // Có thể thêm sound effect "can't jump" ở đây
-        console.log("Cannot jump while grabbing someone!");
-      }
-
-      // Cập nhật animation dựa trên velocity
-      this.animationManager.updateAnimation(body.velocity, body.blocked.down);
+    } else if (this.hasStatusEffect("knockback")) {
+      // Đang bị knockback: bỏ qua input, để vật lý tự xử lý
     } else {
       // ----- LOGIC DI CHUYỂN BÌNH THƯỜNG -----
 
-      if (inputState.left) {
-        body.setVelocityX(-this.config.physics.speed);
-      } else if (inputState.right) {
-        body.setVelocityX(this.config.physics.speed);
-      } else {
-        body.setVelocityX(0);
+      // ========================== BẮT ĐẦU SỬA ĐỔI TRIỆT ĐỂ ==========================
+
+      // SỬA ĐỔI 1: Xử lý input DI CHUYỂN NGANG (Trái/Phải)
+      // Khóa di chuyển ngang khi có hiệu ứng cấm.
+      if (!this.hasStatusEffect("no_horizontal_move")) {
+        if (inputState.left) {
+          body.setVelocityX(-this.config.physics.speed);
+        } else if (inputState.right) {
+          body.setVelocityX(this.config.physics.speed);
+        } else {
+          body.setVelocityX(0);
+        }
       }
 
-      if (inputState.jump && body.blocked.down) {
+      // SỬA ĐỔI 2: Xử lý input NHẢY
+      // Khóa nhảy khi có hiệu ứng cấm.
+      if (
+        !this.hasStatusEffect("no_jump") &&
+        inputState.jump &&
+        body.blocked.down
+      ) {
         body.setVelocityY(-this.config.physics.jumpPower);
         this.scene.sound.play("jump");
       }
 
-      // Cập nhật animation dựa trên velocity
+      // ========================== KẾT THÚC SỬA ĐỔI ==========================
+
+      // Cập nhật animation dựa trên velocity (luôn chạy để hiển thị đúng)
       this.animationManager.updateAnimation(body.velocity, body.blocked.down);
     }
 
@@ -398,11 +578,22 @@ export class Player {
   }
 
   /**
-   * THÊM MỚI: Phương thức để hồi sinh player
+   * THÊM MỚI: Áp dụng một lực từ bên ngoài (ví dụ: gió, dòng nước).
+   * Lực này sẽ được cộng dồn vào vận tốc hiện tại của người chơi.
+   * @param force - Vector lực { x, y }
+   */
+  public applyExternalForce(force: { x: number; y: number }): void {
+    if (!this.sprite || !this.sprite.body) return;
+    const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+    body.velocity.x += force.x;
+    body.velocity.y += force.y;
+  }
+
+  /**
+   * THÊM MỚI: Cập nhật hàm respawn để đảm bảo reset trạng thái khi chết
    */
   public respawn(): void {
     this.isDead = false;
-    // Có thể thêm các logic khác như reset trạng thái power-up ở đây
     console.log("Player has been respawned.");
   }
 
@@ -411,5 +602,23 @@ export class Player {
 
     this.animationManager?.destroy();
     this.sprite?.destroy();
+  }
+
+  // === STATUS EFFECTS API ===
+  public addStatusEffect(effect: IStatusEffect): void {
+    if (this.activeEffects.has(effect.id)) return;
+    this.activeEffects.set(effect.id, effect);
+    effect.onApply(this);
+  }
+
+  public removeStatusEffect(effectId: string): void {
+    const effect = this.activeEffects.get(effectId);
+    if (!effect) return;
+    effect.onRemove(this);
+    this.activeEffects.delete(effectId);
+  }
+
+  public hasStatusEffect(effectId: string): boolean {
+    return this.activeEffects.has(effectId);
   }
 }

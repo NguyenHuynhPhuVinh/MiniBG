@@ -1,4 +1,12 @@
 import { BasePlatformerScene } from "./BasePlatformerScene";
+import { PlatformerLogicCore } from "./PlatformerLogicCore";
+
+// THÊM MỚI: Interface để chứa dữ liệu tile tương tác
+interface InteractiveTileData {
+  id: string;
+  x: number;
+  y: number;
+}
 
 /**
  * 🏗️ PLATFORMER WORLD BUILDER - Chuyên gia Xây dựng Thế giới
@@ -39,6 +47,8 @@ export class PlatformerWorldBuilder {
   public build(): {
     platformsLayer: Phaser.Tilemaps.TilemapLayer;
     foregroundLayer?: Phaser.Tilemaps.TilemapLayer;
+    // THÊM MỚI: Trả về danh sách lò xo
+    springsData: InteractiveTileData[];
   } {
     console.log("🏗️ PlatformerWorldBuilder: Building world...");
 
@@ -104,11 +114,15 @@ export class PlatformerWorldBuilder {
       this.tilemap.heightInPixels
     );
 
+    // 7. THÊM MỚI: Quét và thu thập dữ liệu lò xo
+    // Lưu ý: Việc thay thế tile bằng sprite sẽ diễn ra sau khi các layer được tạo
+    const springsData = this.collectInteractiveTiles("spring");
+
     console.log(
       `🗺️ World built: ${this.tilemap.widthInPixels}x${this.tilemap.heightInPixels}`
     );
 
-    return { platformsLayer, foregroundLayer };
+    return { platformsLayer, foregroundLayer, springsData };
   }
 
   /**
@@ -433,14 +447,42 @@ export class PlatformerWorldBuilder {
           tile.index.toString() // Sử dụng string frame name
         );
 
+        // =================== LOGIC MỚI THÊM VÀO ===================
+        // ĐỌC DỮ LIỆU ROTATION VÀ FLIP TỪ TILE
+        // Tiled lưu rotation bằng độ, Phaser dùng radian.
+        if (tile.rotation) {
+          animSprite.setRotation(tile.rotation); // Phaser.Tilemaps.Tile đã tự chuyển sang radian
+        }
+        if (tile.flipX) {
+          animSprite.setFlipX(true);
+        }
+        // ==========================================================
+
         // Đặt kích thước sprite bằng kích thước tile (64x64)
         animSprite.setDisplaySize(tile.width, tile.height);
 
         // QUAN TRỌNG: Set depth dựa trên layer
         animSprite.setDepth(spriteDepth);
 
-        // Phát animation
-        animSprite.play(animKey);
+        // THÊM DÒNG NÀY: Lưu animKey vào data của sprite để dùng sau này
+        animSprite.setData("animKey", animKey);
+
+        // === LOGIC MỚI QUAN TRỌNG ===
+        if (tile.properties.type === "spring") {
+          // Với lò xo, KHÔNG play animation. Chỉ dừng ở frame đầu tiên.
+          animSprite.stop();
+          console.log(
+            `- Spring tile at (${tile.x}, ${tile.y}) created as a PAUSED sprite.`
+          );
+
+          // Lưu sprite này vào scene để có thể điều khiển sau này
+          const springId = `${tile.x}_${tile.y}`;
+          this.scene.addInteractiveTileSprite(springId, animSprite);
+        } else {
+          // Với các tile animation khác, chạy animation như bình thường
+          animSprite.play(animKey);
+        }
+        // ==============================
 
         // Ẩn tile gốc
         tile.setVisible(false);
@@ -531,5 +573,53 @@ export class PlatformerWorldBuilder {
   public cleanup(): void {
     // Tilemap sẽ được Phaser tự động cleanup khi scene destroy
     console.log("🗑️ PlatformerWorldBuilder cleanup completed");
+  }
+
+  /**
+   * THÊM MỚI: Phương thức để quét và thu thập dữ liệu tile theo type
+   */
+  private collectInteractiveTiles(type: string): InteractiveTileData[] {
+    const tilesData: InteractiveTileData[] = [];
+    // Chỉ quét layer "Platforms" vì lò xo nằm ở đây
+    const platformsLayer = this.tilemap.getLayer("Platforms")?.tilemapLayer;
+
+    if (platformsLayer) {
+      platformsLayer.forEachTile((tile) => {
+        if (tile && tile.properties.type === type) {
+          const tileId = `${tile.x}_${tile.y}`;
+          tilesData.push({ id: tileId, x: tile.x, y: tile.y });
+        }
+      });
+    }
+    console.log(`🔍 Found ${tilesData.length} tiles of type '${type}'`);
+    return tilesData;
+  }
+
+  // THÊM MỚI: Tìm các bomb spawners từ Object layer
+  public findBombSpawners(): {
+    x: number;
+    y: number;
+    spawnRate?: number;
+    bombLifetime?: number;
+  }[] {
+    const objectLayer = this.tilemap.getObjectLayer("Objects");
+    if (!objectLayer) return [];
+
+    return objectLayer.objects
+      .filter((obj: any) => obj.name === "bomb_spawner")
+      .map((obj: any) => {
+        const spawnRateProp = obj.properties?.find(
+          (p: any) => p.name === "spawnRate"
+        );
+        const bombLifetimeProp = obj.properties?.find(
+          (p: any) => p.name === "bombLifetime"
+        );
+        return {
+          x: obj.x,
+          y: obj.y,
+          spawnRate: spawnRateProp?.value ?? 5.0,
+          bombLifetime: bombLifetimeProp?.value ?? 10.0,
+        };
+      });
   }
 }

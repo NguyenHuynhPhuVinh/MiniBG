@@ -13,8 +13,8 @@ import { SCENE_KEYS } from "../../config/constants";
 export class SceneManager {
   // Danh sách các gameplay scenes có thể random
   private static readonly GAMEPLAY_SCENES = [
-    SCENE_KEYS.FOREST, // Forest level (thay thế GameScene)
-    SCENE_KEYS.DESERT, // Desert level
+    SCENE_KEYS.ORIGIN_VALLEY,
+    SCENE_KEYS.TEMPEST_PEAK,
   ] as const;
 
   /**
@@ -62,15 +62,15 @@ export class SceneManager {
     description: string;
   } {
     switch (sceneKey) {
-      case SCENE_KEYS.FOREST:
+      case SCENE_KEYS.ORIGIN_VALLEY:
         return {
-          name: "Forest Level",
-          description: "Rừng xanh với cây cối và thác nước",
+          name: "Origin Valley",
+          description: "Thung lũng khởi nguồn với địa hình đa dạng.",
         };
-      case SCENE_KEYS.DESERT:
+      case SCENE_KEYS.TEMPEST_PEAK:
         return {
-          name: "Desert Level",
-          description: "Sa mạc khô cằn với cát và xương rồng",
+          name: "Tempest Peak",
+          description: "Chinh phục đỉnh núi cao trong gió bão.",
         };
       case SCENE_KEYS.PRELOAD:
         return {

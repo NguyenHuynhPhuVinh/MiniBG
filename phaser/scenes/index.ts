@@ -12,8 +12,8 @@
  * - (Future) BaseRacingScene: Logic chung cho dạng chơi racing
  *
  * Cấp 3 - Concrete Scenes:
- * - ForestScene: Platformer scene với theme rừng (thay thế GameScene)
- * - DesertScene: Platformer scene với theme sa mạc (kiến trúc mới)
+ * - OriginValleyScene: Platformer mở đầu đa dạng cơ chế
+ * - TempestPeakScene: Platformer leo dọc với gió bão khắc nghiệt
  * - (Future) CaveScene: Platformer scene với theme hang động
  *
  * Logic Cores:
@@ -31,8 +31,8 @@ export { BaseGameScene } from "./BaseGameScene";
 export {
   BasePlatformerScene,
   PlatformerLogicCore,
-  ForestScene,
-  DesertScene,
+  OriginValleyScene,
+  TempestPeakScene,
 } from "./platformer";
 
 // === FUTURE EXPANSIONS ===

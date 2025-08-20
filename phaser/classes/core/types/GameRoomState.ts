@@ -32,10 +32,42 @@ export class DisappearingBlock extends Schema {
   @colyseusTypeAny("string") state: string = "idle";
 }
 
+// THÊM MỚI: Schema để định nghĩa trạng thái của một lò xo
+export class Spring extends Schema {
+  @colyseusTypeAny("number") x: number = 0; // Tọa độ tile X
+  @colyseusTypeAny("number") y: number = 0; // Tọa độ tile Y
+  // Trạng thái: 'idle' (bị nén) hoặc 'extended' (bung ra)
+  @colyseusTypeAny("string") state: string = "idle";
+}
+
+// THÊM MỚI: Schema định nghĩa trạng thái của một quả bom
+export class Bomb extends Schema {
+  @colyseusTypeAny("number") x: number = 0;
+  @colyseusTypeAny("number") y: number = 0;
+  @colyseusTypeAny("number") velocityX: number = 0;
+  @colyseusTypeAny("number") velocityY: number = 0;
+  @colyseusTypeAny("string") state: string = "ticking"; // 'ticking' | 'exploding'
+}
+
 export class GameRoomState extends Schema {
   @colyseusTypeAny({ map: Player }) players = new MapSchema<Player>();
 
   // THÊM MỚI: Một Map để lưu trạng thái của tất cả các block biến mất trong phòng.
   // Key của map sẽ là ID duy nhất của block (ví dụ: "10_15").
-  @colyseusTypeAny({ map: DisappearingBlock }) disappearingBlocks = new MapSchema<DisappearingBlock>();
+  @colyseusTypeAny({ map: DisappearingBlock }) disappearingBlocks =
+    new MapSchema<DisappearingBlock>();
+
+  // THÊM MỚI: Map để lưu trạng thái của tất cả các lò xo
+  @colyseusTypeAny({ map: Spring }) springs = new MapSchema<Spring>();
+
+  // ======================== THÊM CÁC DÒNG MỚI DƯỚI ĐÂY ========================
+  // Hệ số hướng gió: 1.0 = trái, -1.0 = phải, 0.0 = không gió
+  @colyseusTypeAny("number") windDirectionMultiplier: number = 1.0;
+
+  // Thời điểm (timestamp của server) mà gió sẽ đổi hướng tiếp theo
+  @colyseusTypeAny("number") nextWindChangeTime: number = 0;
+  // =========================================================================
+
+  // THÊM MỚI: Map để đồng bộ trạng thái bom
+  @colyseusTypeAny({ map: Bomb }) bombs = new MapSchema<Bomb>();
 }

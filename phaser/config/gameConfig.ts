@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import { GAME_CONFIG } from "./constants";
 import { PreloadScene } from "../scenes/PreloadScene";
-import { ForestScene, DesertScene } from "../scenes/platformer";
+import { OriginValleyScene, TempestPeakScene } from "../scenes/platformer";
 
 /**
  * 🎮 TẠO CẤU HÌNH PHASER GAME
@@ -36,7 +36,7 @@ export const createGameConfig = (
     },
 
     // === DANH SÁCH SCENES (thứ tự chạy) ===
-    scene: [PreloadScene, ForestScene, DesertScene], // PreloadScene → Random(ForestScene/DesertScene)
+    scene: [PreloadScene, OriginValleyScene, TempestPeakScene], // PreloadScene → Random(OriginValley/TempestPeak)
 
     // === CẤU HÌNH PHYSICS ===
     physics: {
@@ -44,7 +44,13 @@ export const createGameConfig = (
       arcade: {
         gravity: { y: 800, x: 0 }, // Trọng lực hướng xuống (800 = mạnh)
         debug: false, // Tắt debug graphics (bật = true để debug)
+        fps: 120, // Tăng FPS để tối ưu performance
       },
+      // BỔ SUNG: Bật Matter cho các vật thể cần vật lý phức tạp
+      matter: {
+        gravity: { y: 0.8, x: 0 },
+        debug: true,
+      } as any,
     },
 
     // === CẤU HÌNH RENDER ===

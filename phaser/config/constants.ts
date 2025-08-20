@@ -12,11 +12,13 @@ export const GAME_CONFIG = {
 // === KEYS CỦA CÁC SCENE ===
 export const SCENE_KEYS = {
   PRELOAD: "PreloadScene", // Scene loading assets
-  FOREST: "ForestScene", // Scene rừng (forest level) - thay thế GameScene
-  DESERT: "DesertScene", // Scene sa mạc (desert level) - kiến trúc mới
+  ORIGIN_VALLEY: "OriginValleyScene", // New name for Forest
+  TEMPEST_PEAK: "TempestPeakScene", // New name for Desert
 
-  // Legacy keys (deprecated - sẽ loại bỏ)
-  GAME: "GameScene", // @deprecated - sử dụng FOREST thay thế
+  // Legacy keys (deprecated - giữ tạm cho tương thích ngược)
+  GAME: "GameScene", // @deprecated
+  FOREST: "OriginValleyScene",
+  DESERT: "TempestPeakScene",
 } as const;
 
 // === BẢNG MÀU GAME ===

@@ -2,6 +2,7 @@
 import { IPlatformerRules } from "./IPlatformerRules";
 import { MinigameCore } from "../../../classes";
 import { BasePlatformerScene } from "../BasePlatformerScene";
+import * as Phaser from "phaser";
 
 /**
  * Bộ quy tắc tiêu chuẩn, được sử dụng bởi hầu hết các màn chơi.
@@ -21,6 +22,14 @@ export class StandardRules implements IPlatformerRules {
     console.log(
       `🎯 StandardRules: Time trial started at ${this.startTime} for ${scene.scene.key}`
     );
+  }
+
+  /**
+   * THÊM MỚI: Triển khai phương thức update từ interface.
+   * Màn chơi tiêu chuẩn không có hiệu ứng mỗi frame, nên để trống.
+   */
+  public update(): void {
+    // Màn chơi tiêu chuẩn không có hiệu ứng mỗi frame, nên để trống.
   }
 
   handleCollectible(

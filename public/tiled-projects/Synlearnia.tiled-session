@@ -25,15 +25,29 @@
         "#spritesheet-tiles-default": {
             "dynamicWrapping": false
         },
+        "maps/OriginValleyScene.tmx": {
+            "scale": 0.0783794981060606,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 4223.043117118479,
+                "y": 1920.144982254776
+            }
+        },
+        "maps/OriginValleyScene.tmx#spritesheet-backgrounds-default": {
+            "scaleInDock": 1
+        },
+        "maps/OriginValleyScene.tmx#spritesheet-tiles-default": {
+            "scaleInDock": 1
+        },
         "maps/level-1-forest.tmx": {
             "expandedObjectLayers": [
                 3
             ],
-            "scale": 1,
+            "scale": 0.25,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 3223.5,
-                "y": 3024.5
+                "x": 3328,
+                "y": 3646
             }
         },
         "maps/level-1-forest.tmx#backgrounds": {
@@ -51,18 +65,19 @@
         },
         "maps/level-2-desert.tmx": {
             "expandedObjectLayers": [
+                5,
                 3
             ],
-            "scale": 0.33,
-            "selectedLayer": 2,
+            "scale": 0.75,
+            "selectedLayer": 1,
             "viewCenter": {
-                "x": 922.7272727272729,
-                "y": 471.21212121212113
+                "x": 1582.6666666666665,
+                "y": 8231.333333333332
             }
         },
         "maps/level-2-desert.tmx#spritesheet-backgrounds-default": {
             "dynamicWrapping": false,
-            "scaleInDock": 1,
+            "scaleInDock": 0.33,
             "scaleInEditor": 1
         },
         "maps/level-2-desert.tmx#spritesheet-tiles-default": {
@@ -107,6 +122,7 @@
     "frame.defaultDuration": 250,
     "last.exportedFilePath": "C:/Users/tomis/Documents/QL_CTDT_FRONT/frontend/public/tiled-projects/exports",
     "last.imagePath": "C:/Users/tomis/Documents/QL_CTDT_FRONT/frontend/public/kenney_new-platformer-pack-1.0/Spritesheets",
+    "lastUsedTilesetExportFilter": "All Files (*)",
     "map.height": 12,
     "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
     "map.lastUsedFormat": "tmx",

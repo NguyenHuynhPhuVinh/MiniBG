@@ -1,7 +1,9 @@
 import { Room, getStateCallbacks } from "colyseus.js";
+import { InteractiveObjectManager } from "../interactive/InteractiveObjectManager";
 import {
   GameRoomState,
   Player as PlayerStateSchema,
+  Bomb as BombStateSchema,
 } from "../core/types/GameRoomState";
 import { BasePlatformerScene } from "../../scenes/platformer/BasePlatformerScene";
 import { AnimationManager, AnimationState } from "./AnimationManager";
@@ -37,6 +39,13 @@ export class PlatformerNetworkHandler {
   private createdPlayers: Set<string> = new Set();
   private isListenersSetup: boolean = false; // Thêm cờ để đảm bảo listener chỉ setup 1 lần
 
+  // THÊM MỚI: Theo dõi bombs (Matter) và proxy (Arcade)
+  private bombMatterSprites: Map<string, Phaser.Physics.Matter.Sprite> =
+    new Map();
+  private bombProxySprites: Map<string, Phaser.Physics.Arcade.Sprite> =
+    new Map();
+  private interactiveObjectManager!: InteractiveObjectManager;
+
   // (Đã gom hằng số vào InterpolationUtils)
 
   constructor(
@@ -55,6 +64,21 @@ export class PlatformerNetworkHandler {
     return this.remotePlayersGroup;
   }
 
+  // THÊM MỚI: Phương thức tiện ích để tìm sessionId từ sprite
+  public getSessionIdBySprite(
+    sprite: Phaser.Physics.Arcade.Sprite
+  ): string | null {
+    for (const [
+      sessionId,
+      remoteSprite,
+    ] of this.remotePlayerSprites.entries()) {
+      if (remoteSprite === sprite) {
+        return sessionId;
+      }
+    }
+    return null;
+  }
+
   /**
    * Khởi tạo handler với room instance và thiết lập các listeners.
    * @param room - Instance của Colyseus Room.
@@ -65,6 +89,12 @@ export class PlatformerNetworkHandler {
       room.name
     );
     this.room = room;
+
+    // Khởi tạo InteractiveObjectManager ngay khi initialize để tránh race condition với update()
+    this.interactiveObjectManager = new InteractiveObjectManager(
+      this.scene as any,
+      this.room
+    );
 
     this.createdPlayers.clear();
     this.isListenersSetup = false; // Reset cờ
@@ -116,6 +146,22 @@ export class PlatformerNetworkHandler {
     $(this.room.state).players.onAdd(this.addPlayerEntity);
     $(this.room.state).players.onRemove(this.removePlayerEntity);
 
+    // THÊM MỚI: Listener cho bombs (qua InteractiveObjectManager)
+    $(this.room.state).bombs.onAdd(
+      (bombState: BombStateSchema, bombId: string) => {
+        this.interactiveObjectManager?.spawnFromState(
+          "bomb",
+          bombId,
+          bombState
+        );
+      }
+    );
+    $(this.room.state).bombs.onRemove(
+      (_bombState: BombStateSchema, bombId: string) => {
+        this.interactiveObjectManager?.despawn(bombId);
+      }
+    );
+
     console.log(
       `✅ PlatformerNetworkHandler state listeners setup successfully`
     );
@@ -125,6 +171,7 @@ export class PlatformerNetworkHandler {
    * Được gọi mỗi frame từ scene để nội suy chuyển động của người chơi khác.
    */
   public update(): void {
+    // Nội suy remote players
     this.remotePlayerSprites.forEach((sprite, sessionId) => {
       const target_x = sprite.getData("target_x");
       const target_y = sprite.getData("target_y");
@@ -138,6 +185,9 @@ export class PlatformerNetworkHandler {
         nameTag.y = sprite.y - 60;
       }
     });
+
+    // Cập nhật InteractiveObjectManager
+    this.interactiveObjectManager?.update(16.6667);
   }
 
   // THÊM MỚI: Cập nhật debug hitbox cho remote player
@@ -273,6 +323,8 @@ export class PlatformerNetworkHandler {
     }
   };
 
+  // ======================= BOM HANDLERS REMOVED (handled by InteractiveObjectManager) =======================
+
   /**
    * Xử lý khi có người chơi rời phòng.
    */
@@ -350,6 +402,12 @@ export class PlatformerNetworkHandler {
     this.remotePlayerSprites.clear();
     this.remotePlayerAnims.clear();
     this.remotePlayerNameTags.clear(); // <-- THÊM MỚI
+
+    // Dọn dẹp bombs (Matter + proxy)
+    this.bombMatterSprites.forEach((s) => s.destroy());
+    this.bombMatterSprites.clear();
+    this.bombProxySprites.forEach((s) => s.destroy());
+    this.bombProxySprites.clear();
 
     this.createdPlayers.clear(); // 🔧 Clear tracking
     console.log("🗑️ PlatformerNetworkHandler cleaned up.");

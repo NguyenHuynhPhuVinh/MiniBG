@@ -166,7 +166,7 @@ export class SeededSceneSelector {
 
   constructor(
     seed: string,
-    availableScenes: string[] = ["ForestScene", "DesertScene"]
+    availableScenes: string[] = ["OriginValleyScene", "TempestPeakScene"]
   ) {
     this.random = new SeededRandom(seed);
     this.availableScenes = availableScenes;

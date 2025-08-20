@@ -48,104 +48,73 @@ interface GameStep {
 }
 
 const SCENE_INFO = {
-  // Forest Scene variations
-  GameScene: {
-    displayName: "Rừng Xanh",
-    description: "Khám phá khu rừng với những thử thách thú vị",
+  // New naming
+  OriginValleyScene: {
+    displayName: "Thung Lũng Khởi Nguồn",
+    description: "Khám phá vùng đất đa dạng với những thử thách đầu tiên.",
     tips: [
-      "Môi trường rừng xanh mát với nhiều cây cối",
-      "Có nhiều xu vàng ẩn giấu trong các góc khuất",
-      "Địa hình có nhiều nền tảng để nhảy",
-      "Thời gian hoàn thành: 2-3 phút",
+      "Mỗi loại địa hình có một đặc tính riêng, hãy để ý!",
+      "Gai rất nguy hiểm, nhưng đôi khi chúng lại chỉ đường đến bí mật.",
+      "Đây là màn chơi tốt để luyện tập kỹ năng nhảy của bạn.",
     ],
     color: "text-green-600",
     bgColor: "bg-green-50",
     icon: Trees,
     steps: [
       {
-        title: "Di chuyển",
+        title: "Di chuyển Trái/Phải",
         description:
-          "Sử dụng WASD hoặc phím mũi tên để di chuyển nhân vật qua các địa hình khác nhau",
+          "Nhấn A/D hoặc mũi tên Trái/Phải để di chuyển sang trái/phải",
         icon: Gamepad2,
       },
       {
         title: "Nhảy",
-        description:
-          "Nhấn Space để nhảy qua các chướng ngại vật và lên các nền tảng cao",
+        description: "Nhấn mũi tên Lên hoặc phím Space để nhảy",
         icon: Mountain,
       },
       {
-        title: "Thu thập",
+        title: "Nắm/Thả",
         description:
-          "Thu thập xu vàng và các vật phẩm để tăng điểm số trong vòng chơi",
-        icon: Trees,
-      },
-    ],
-  },
-  ForestScene: {
-    displayName: "Rừng Xanh",
-    description: "Khám phá khu rừng với những thử thách thú vị",
-    tips: [
-      "Môi trường rừng xanh mát với nhiều cây cối",
-      "Có nhiều xu vàng ẩn giấu trong các góc khuất",
-      "Địa hình có nhiều nền tảng để nhảy",
-      "Thời gian hoàn thành: 2-3 phút",
-    ],
-    color: "text-green-600",
-    bgColor: "bg-green-50",
-    icon: Trees,
-    steps: [
-      {
-        title: "Di chuyển",
-        description:
-          "Sử dụng WASD hoặc phím mũi tên để di chuyển nhân vật qua các địa hình khác nhau",
+          "Nhấn phím E để nắm người chơi gần nhất, nhấn E lần nữa để thả",
         icon: Gamepad2,
       },
       {
-        title: "Nhảy",
+        title: "Hỗ Trợ Mobile",
         description:
-          "Nhấn Space để nhảy qua các chướng ngại vật và lên các nền tảng cao",
-        icon: Mountain,
-      },
-      {
-        title: "Thu thập",
-        description:
-          "Thu thập xu vàng và các vật phẩm để tăng điểm số trong vòng chơi",
-        icon: Trees,
+          "Đã hỗ trợ nút ảo trên di động (d-pad, nhảy, nắm) — tự hiển thị khi chơi trên mobile",
+        icon: Lightbulb,
       },
     ],
   },
-  // Desert Scene
-  DesertScene: {
-    displayName: "Sa Mạc Vàng",
-    description: "Vượt qua sa mạc với những thử thách khắc nghiệt",
+  TempestPeakScene: {
+    displayName: "Đỉnh Phong Bão",
+    description: "Chinh phục đỉnh núi cao trong thời tiết khắc nghiệt.",
     tips: [
-      "Môi trường sa mạc khô cằn với nhiều thử thách",
-      "Cần di chuyển nhanh để tránh các nguy hiểm",
-      "Có nhiều kho báu ẩn giấu trong cát",
-      "Thời gian hoàn thành: 3-4 phút",
+      "Hãy lợi dụng sức gió để thực hiện những cú nhảy xa hơn.",
+      "Lò xo sẽ đẩy bạn lên rất cao, hãy cẩn thận với sức gió trên đỉnh.",
+      "Bom không phá hủy, chỉ nổ gây lực đẩy — cẩn thận bị hất văng!",
+      "Càng lên cao, tuyết sẽ làm bạn di chuyển chậm lại.",
     ],
-    color: "text-orange-600",
-    bgColor: "bg-orange-50",
+    color: "text-blue-600",
+    bgColor: "bg-blue-50",
     icon: Mountain,
     steps: [
       {
-        title: "Thăm dò",
-        description:
-          "Khám phá sa mạc và tìm kiếm các con đường an toàn qua địa hình hiểm trở",
+        title: "Leo Trèo",
+        description: "Sử dụng lò xo và kỹ năng để leo lên càng cao càng tốt.",
         icon: Mountain,
       },
       {
-        title: "Tránh nguy hiểm",
+        title: "Cẩn Thận Gió Lớn",
         description:
-          "Cẩn thận với các chướng ngại vật và bẫy ẩn giấu trong sa mạc",
+          "Gió sẽ liên tục đổi hướng và mạnh hơn ở trên cao. Hãy thích nghi!",
         icon: Lightbulb,
       },
       {
-        title: "Thu thập kho báu",
+        title: "Tận Dụng Môi Trường",
         description:
-          "Tìm và thu thập các kho báu quý giá ẩn giấu trong cát sa mạc",
-        icon: Trees,
+          "Bom chỉ tạo lực đẩy; tận dụng knockback để vượt chướng ngại hoặc tăng đà.",
+        icon: Gamepad2,
       },
     ],
   },
