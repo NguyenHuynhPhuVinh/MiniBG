@@ -15,6 +15,7 @@ export class SceneManager {
   private static readonly GAMEPLAY_SCENES = [
     SCENE_KEYS.ORIGIN_VALLEY,
     SCENE_KEYS.TEMPEST_PEAK,
+    SCENE_KEYS.WHISPERING_CAVERNS,
   ] as const;
 
   /**
@@ -71,6 +72,11 @@ export class SceneManager {
         return {
           name: "Tempest Peak",
           description: "Chinh phục đỉnh núi cao trong gió bão.",
+        };
+      case SCENE_KEYS.WHISPERING_CAVERNS:
+        return {
+          name: "Whispering Caverns",
+          description: "Khám phá hang động tối tăm chỉ với ánh đuốc leo lét.",
         };
       case SCENE_KEYS.PRELOAD:
         return {

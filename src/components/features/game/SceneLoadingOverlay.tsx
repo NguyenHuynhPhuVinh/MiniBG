@@ -10,6 +10,7 @@ import {
   Play,
   ChevronLeft,
   ChevronRight,
+  Flame,
 } from "lucide-react";
 
 /**
@@ -115,6 +116,39 @@ const SCENE_INFO = {
         title: "Tận Dụng Môi Trường",
         description:
           "Bom chỉ tạo lực đẩy; tận dụng knockback để vượt chướng ngại hoặc tăng đà.",
+        icon: Gamepad2,
+      },
+    ],
+  },
+  WhisperingCavernsScene: {
+    displayName: "Hang Động Thì Thầm",
+    description:
+      "Khám phá những lối đi bí ẩn trong bóng tối, chỉ được dẫn lối bởi những ngọn đuốc leo lét.",
+    tips: [
+      "Bóng tối có thể che giấu cả kho báu và cạm bẫy, hãy đi thật cẩn thận.",
+      "Hãy ghi nhớ vị trí các ngọn đuốc, chúng là điểm an toàn duy nhất của bạn.",
+      "Một số nền tảng có thể không nhìn thấy rõ trong bóng tối cho đến khi bạn lại gần.",
+    ],
+    color: "text-orange-600",
+    bgColor: "bg-orange-50",
+    icon: Flame,
+    steps: [
+      {
+        title: "Dò dẫm trong bóng tối",
+        description:
+          "Màn chơi sẽ rất tối. Hãy di chuyển từ ngọn đuốc này đến ngọn đuốc khác để tìm đường đi.",
+        icon: Flame,
+      },
+      {
+        title: "Cẩn thận bước chân",
+        description:
+          "Gai nhọn và các hố sâu có thể bị che khuất. Hãy nhảy một cách cẩn trọng.",
+        icon: Lightbulb,
+      },
+      {
+        title: "Tìm kiếm bí mật",
+        description:
+          "Bóng tối là nơi hoàn hảo để giấu những vật phẩm quý giá. Hãy thử nhảy vào những bức tường đáng ngờ!",
         icon: Gamepad2,
       },
     ],

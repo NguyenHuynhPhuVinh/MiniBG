@@ -15,6 +15,7 @@ import {
   NoHorizontalMoveEffect,
   NoJumpEffect,
   SpringLaunchEffect,
+  SwimmingEffect,
 } from "./effects";
 
 // ======================== THÊM HẰNG SỐ CHO HỆ THỐNG TRUYỀN LỰC ĐẨY ========================
@@ -54,6 +55,7 @@ export class Player {
   private sprite!: Phaser.Physics.Arcade.Sprite;
   private nameTag!: Phaser.GameObjects.Text; // <-- THÊM MỚI
   private animationManager!: AnimationManager;
+
   private inputManager: InputManager;
   private cameraManager: CameraManager;
   private config: Required<PlayerConfig>;
@@ -94,6 +96,14 @@ export class Player {
   // MỚI: Các thuộc tính để theo dõi quãng đường rơi
   private isActivelyFalling: boolean = false;
   private fallStartHeight: number = 0;
+
+  // === SWIMMING STATE ===
+  private isInWaterThisFrame: boolean = false;
+
+  // === FALL-THROUGH STATE ===
+  // THÊM MỚI: Sử dụng 2 cờ trạng thái để tránh race condition
+  private isInFallZone: boolean = false; // Cờ trạng thái "bền bỉ"
+  public wasInFallZoneThisFrame: boolean = false; // Cờ "cảm biến" tạm thời, public để WorldBuilder có thể set
 
   constructor(
     // SỬA ĐỔI: Thay Scene bằng BasePlatformerScene
@@ -383,9 +393,34 @@ export class Player {
   }
 
   /**
+   * Được gọi bởi WaterBehavior mỗi frame khi người chơi ở trong nước.
+   * Phương thức này sẽ kích hoạt và duy trì trạng thái bơi.
+   */
+  public markAsInWater(): void {
+    this.isInWaterThisFrame = true;
+    // Nếu chưa bơi, bắt đầu bơi
+    if (!this.hasStatusEffect("swimming")) {
+      this.addStatusEffect(new SwimmingEffect());
+    }
+  }
+
+  /**
    * 🔄 UPDATE - Logic mới với tính năng nắm và thoát
    */
   public update(): void {
+    // === LOGIC MỚI: CẬP NHẬT TRẠNG THÁI TRƯỚC VẬT LÝ ===
+    // Logic này chạy ở đầu mỗi frame, TRƯỚC KHI engine vật lý hoạt động.
+    // Nó quyết định trạng thái cho frame HIỆN TẠI dựa trên kết quả của frame TRƯỚC.
+
+    // 1. Nếu cảm biến của frame trước KHÔNG được bật -> tức là ta đã ra khỏi zone.
+    if (!this.wasInFallZoneThisFrame) {
+      this.isInFallZone = false; // Tắt trạng thái rơi bền bỉ.
+    }
+
+    // 2. Reset cảm biến cho frame hiện tại.
+    // Overlap sẽ bật lại nó nếu cần.
+    this.wasInFallZoneThisFrame = false;
+    // =======================================================
     // === 1) Cập nhật tất cả Status Effects và dọn dẹp ===
     const dt = this.scene.game.loop.delta;
     const finishedEffects: string[] = [];
@@ -405,6 +440,12 @@ export class Player {
     }
     this.wasOnSnowLastFrame = this.isOnSnow;
     this.isOnSnow = false;
+
+    // === 3) LOGIC MỚI: Kiểm tra xem người chơi vừa rời khỏi nước ===
+    // Nếu frame trước đang bơi VÀ frame này không còn trong nước -> gỡ hiệu ứng
+    if (this.hasStatusEffect("swimming") && !this.isInWaterThisFrame) {
+      this.removeStatusEffect("swimming");
+    }
 
     if (!this.sprite || !this.sprite.body || this.isDead || !this.playerState)
       return;
@@ -452,70 +493,102 @@ export class Player {
     // (Các hiệu ứng sẽ tự cập nhật và kết thúc; không còn cần logic reset thủ công)
 
     // =======================================================
-    // === LOGIC MỚI: PHÂN TÁCH DỰA TRÊN TRẠNG THÁI isGrabbed ===
+    // === LOGIC MỚI: SẮP XẾP LẠI THỨ TỰ ƯU TIÊN ===
     // =======================================================
 
-    if (this.playerState.isGrabbed && this.serverTargetPosition) {
-      // ----- LOGIC KHI BỊ NẮM (NỘI SUY BẰNG VẬN TỐC) -----
+    // ƯU TIÊN 1: Nếu đang bị knockback, để cho vật lý tự do hoạt động.
+    if (this.hasStatusEffect("knockback")) {
+      // Không làm gì cả. Điều này cho phép vận tốc từ `applyKnockback()`
+      // được duy trì cho đến khi hiệu ứng kết thúc.
+      // Trọng lực vẫn sẽ được áp dụng bởi Arcade Physics.
+    }
+    // ƯU TIÊN 2: Nếu bị nắm/bế VÀ KHÔNG bị knockback, hãy bám theo người bế.
+    else if (this.playerState.isGrabbed && this.serverTargetPosition) {
+      // ----- LOGIC KHI BỊ NẮM/BẾ (GIỮ NGUYÊN) -----
+      body.setAllowGravity(false);
+      body.setVelocity(0, 0);
       InterpolationUtils.updateVelocity(this.sprite, this.serverTargetPosition);
-
-      // 2. Xử lý animation "vùng vẫy"
-      // Client có quyền quyết định animation vùng vẫy của chính mình
+      // ... (phần xử lý animation vùng vẫy và struggle giữ nguyên) ...
       const isTryingToMove = inputState.left || inputState.right;
       if (isTryingToMove) {
         this.animationManager.playAnimation("walk");
         this.sprite.setFlipX(inputState.left);
       } else {
-        // Nếu không vùng vẫy, thì dùng animation từ server (do người nắm quyết định)
         this.animationManager.playAnimation(
           this.playerState.animState as AnimationState
         );
         this.sprite.setFlipX(this.playerState.flipX);
       }
-
-      // 3. Xử lý "nỗ lực thoát" (struggle)
       const isStruggling =
         inputState.left || inputState.right || inputState.jump;
       if (isStruggling && this.scene.time.now > this.struggleCooldown) {
         this.networkManager.room?.send("struggle");
-        this.struggleCooldown = this.scene.time.now + 100; // Cooldown 100ms
+        this.struggleCooldown = this.scene.time.now + 100;
       }
-    } else if (this.hasStatusEffect("knockback")) {
-      // Đang bị knockback: bỏ qua input, để vật lý tự xử lý
-    } else {
-      // ----- LOGIC DI CHUYỂN BÌNH THƯỜNG -----
+    }
+    // ƯU TIÊN 3: Nếu không có gì đặc biệt, xử lý di chuyển bình thường.
+    else {
+      // ----- PHÂN NHÁNH ĐIỀU KHIỂN: BƠI vs BÌNH THƯỜNG -----
+      if (!body.allowGravity) {
+        body.setAllowGravity(true);
+      }
 
-      // ========================== BẮT ĐẦU SỬA ĐỔI TRIỆT ĐỂ ==========================
+      if (this.hasStatusEffect("swimming")) {
+        // === LOGIC KHI ĐANG BƠI ===
 
-      // SỬA ĐỔI 1: Xử lý input DI CHUYỂN NGANG (Trái/Phải)
-      // Khóa di chuyển ngang khi có hiệu ứng cấm.
-      if (!this.hasStatusEffect("no_horizontal_move")) {
+        // 1. Di chuyển ngang trong nước
         if (inputState.left) {
           body.setVelocityX(-this.config.physics.speed);
         } else if (inputState.right) {
           body.setVelocityX(this.config.physics.speed);
         } else {
-          body.setVelocityX(0);
+          // Giảm tốc dần trong nước
+          body.setVelocityX(body.velocity.x * 0.95);
+        }
+
+        // 2. Bơi lên (thay cho nhảy)
+        if (inputState.jump) {
+          body.setVelocityY(-this.config.physics.jumpPower);
+          // Có thể thêm âm thanh bơi ở đây nếu muốn
+        }
+
+        // 3. Cập nhật Animation (tái sử dụng animation có sẵn)
+        // Nếu có di chuyển (ngang hoặc dọc) -> dùng animation 'walk' như đang đạp nước
+        if (Math.abs(body.velocity.x) > 10 || Math.abs(body.velocity.y) > 10) {
+          this.animationManager.playAnimation("walk");
+        } else {
+          // Nếu đứng yên -> dùng animation 'fall' như đang nổi
+          this.animationManager.playAnimation("fall");
+        }
+        // Lật sprite theo hướng di chuyển
+        if (body.velocity.x > 0) this.animationManager.setFlipX(false);
+        else if (body.velocity.x < 0) this.animationManager.setFlipX(true);
+      } else {
+        // === LOGIC DI CHUYỂN BÌNH THƯỜNG (TRÊN CẠN/KHÔNG TRUNG) ===
+        if (!this.hasStatusEffect("no_horizontal_move")) {
+          if (inputState.left) {
+            body.setVelocityX(-this.config.physics.speed);
+          } else if (inputState.right) {
+            body.setVelocityX(this.config.physics.speed);
+          } else {
+            body.setVelocityX(0);
+          }
+        }
+        if (
+          !this.hasStatusEffect("no_jump") &&
+          inputState.jump &&
+          body.blocked.down &&
+          this.scene.time.now > this.jumpCooldown
+        ) {
+          body.setVelocityY(-this.config.physics.jumpPower);
+          this.scene.sound.play("jump");
+          this.jumpCooldown = this.scene.time.now + 300;
         }
       }
+    }
 
-      // SỬA ĐỔI 2: Xử lý input NHẢY với COOLDOWN (tránh spam nhảy trên đầu người chơi khác)
-      // Khóa nhảy khi có hiệu ứng cấm hoặc đang trong cooldown
-      if (
-        !this.hasStatusEffect("no_jump") &&
-        inputState.jump &&
-        body.blocked.down &&
-        this.scene.time.now > this.jumpCooldown
-      ) {
-        body.setVelocityY(-this.config.physics.jumpPower);
-        this.scene.sound.play("jump");
-        // Đặt lại cooldown sau khi nhảy
-        this.jumpCooldown = this.scene.time.now + 300; // 300ms
-      }
-
-      // ========================== KẾT THÚC SỬA ĐỔI ==========================
-
-      // Cập nhật animation dựa trên velocity (luôn chạy để hiển thị đúng)
+    // Cập nhật animation - chỉ cho trường hợp không bơi (swimming tự xử lý animation)
+    if (!this.hasStatusEffect("swimming")) {
       this.animationManager.updateAnimation(body.velocity, body.blocked.down);
     }
 
@@ -547,6 +620,44 @@ export class Player {
       }
     }
 
+    // --- THÊM LOGIC MỚI DƯỚI ĐÂY ---
+    // Xử lý hành động "bế" hoặc "ném"
+    if (this.inputManager.isJustPressed("carry")) {
+      // 'F' key
+      // ======================== BẮT ĐẦU SỬA ĐỔI ========================
+
+      // Case 1: Nếu đang BẾ -> thực hiện NÉM
+      if (this.playerState.interactionState === "carry") {
+        console.log("[Client] Requesting interaction change (throw)");
+        this.networkManager.room?.send("requestInteractionChange");
+      }
+      // Case 2: Nếu đang NẮM -> thực hiện chuyển sang BẾ
+      else if (this.playerState.interactionState === "grab") {
+        console.log("[Client] Requesting interaction change (grab -> carry)");
+        // Server đã biết cách xử lý message này để chuyển từ grab -> carry
+        this.networkManager.room?.send("requestInteractionChange");
+      }
+      // Case 3: Nếu không làm gì -> thực hiện BẾ TRỰC TIẾP
+      else {
+        const closestRemotePlayer = this.scene.findClosestRemotePlayer(
+          this.sprite.x,
+          this.sprite.y,
+          this.GRAB_DISTANCE_THRESHOLD
+        );
+        if (closestRemotePlayer) {
+          console.log(
+            `[Client] Requesting to DIRECTLY CARRY ${closestRemotePlayer.sessionId}`
+          );
+          // Gửi message mới để bế trực tiếp
+          this.networkManager.room?.send("requestDirectCarry", {
+            targetSessionId: closestRemotePlayer.sessionId,
+          });
+        }
+      }
+
+      // ======================== KẾT THÚC SỬA ĐỔI ========================
+    }
+
     // 5. Gửi trạng thái lên server (giữ nguyên)
     // QUAN TRỌNG: Vẫn gửi update vị trí, vì khi bị nắm, server sẽ ghi đè lên vị trí này.
     // Điều này đảm bảo khi được thả ra, vị trí của bạn là chính xác.
@@ -573,6 +684,10 @@ export class Player {
       this.nameTag.x = this.sprite.x;
       this.nameTag.y = this.sprite.y - 60;
     }
+
+    // === LOGIC MỚI: Reset cờ nước cho frame tiếp theo ===
+    // Phải đặt ở cuối hàm update
+    this.isInWaterThisFrame = false;
   }
 
   public getSprite(): Phaser.Physics.Arcade.Sprite {
@@ -600,7 +715,36 @@ export class Player {
    */
   public respawn(): void {
     this.isDead = false;
+
+    // Reset lại cả hai cờ khi hồi sinh
+    this.isInFallZone = false;
+    this.wasInFallZoneThisFrame = false;
+    this.sprite.setAlpha(1); // Khôi phục alpha nếu bạn có thay đổi
+
     console.log("Player has been respawned.");
+  }
+
+  // === FALL-THROUGH SYSTEM METHODS ===
+  /**
+   * Được gọi bởi overlap callback để báo hiệu rằng người chơi đang ở trong vùng rơi.
+   */
+  public markAsInFallZone(): void {
+    this.isInFallZone = true;
+    this.wasInFallZoneThisFrame = true; // Cũng bật cờ cảm biến để duy trì trạng thái cho frame sau
+
+    // Tùy chọn: Thêm hiệu ứng hình ảnh hoặc âm thanh ở đây
+    // Ví dụ: làm mờ người chơi hoặc chơi âm thanh "cracking"
+    // if (this.sprite.alpha === 1) {
+    //   this.sprite.setAlpha(0.7);
+    //   this.scene.sound.play('floor_crack', { volume: 0.5 });
+    // }
+  }
+
+  /**
+   * Phương thức getter giờ sẽ đọc cờ bền bỉ
+   */
+  public getIsFallingThrough(): boolean {
+    return this.isInFallZone;
   }
 
   public destroy(): void {

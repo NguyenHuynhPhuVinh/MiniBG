@@ -1,7 +1,11 @@
 import * as Phaser from "phaser";
 import { GAME_CONFIG } from "./constants";
 import { PreloadScene } from "../scenes/PreloadScene";
-import { OriginValleyScene, TempestPeakScene } from "../scenes/platformer";
+import {
+  OriginValleyScene,
+  TempestPeakScene,
+  WhisperingCavernsScene,
+} from "../scenes/platformer";
 
 /**
  * 🎮 TẠO CẤU HÌNH PHASER GAME
@@ -36,7 +40,12 @@ export const createGameConfig = (
     },
 
     // === DANH SÁCH SCENES (thứ tự chạy) ===
-    scene: [PreloadScene, OriginValleyScene, TempestPeakScene], // PreloadScene → Random(OriginValley/TempestPeak)
+    scene: [
+      PreloadScene,
+      OriginValleyScene,
+      TempestPeakScene,
+      WhisperingCavernsScene,
+    ], // PreloadScene → Random(OriginValley/TempestPeak/WhisperingCaverns)
 
     // === CẤU HÌNH PHYSICS ===
     physics: {
@@ -48,8 +57,8 @@ export const createGameConfig = (
       },
       // BỔ SUNG: Bật Matter cho các vật thể cần vật lý phức tạp
       matter: {
-        gravity: { y: 0.8, x: 0 },
-        debug: true,
+        gravity: { y: 1.0, x: 0 }, // Tăng trọng lực để bom rơi nhanh và mạnh hơn
+        debug: false, // BẬT DEBUG để kiểm tra collision boundaries
       } as any,
     },
 

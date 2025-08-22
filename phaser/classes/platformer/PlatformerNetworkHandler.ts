@@ -4,17 +4,22 @@ import {
   GameRoomState,
   Player as PlayerStateSchema,
   Bomb as BombStateSchema,
+  Enemy as EnemyStateSchema,
+  PhysicsObject as PhysicsObjectSchema, // <-- THÊY THẾ ROCK BẰNG PHYSICS OBJECT
 } from "../core/types/GameRoomState";
 import { BasePlatformerScene } from "../../scenes/platformer/BasePlatformerScene";
 import { AnimationManager, AnimationState } from "./AnimationManager";
 import { TextUtils } from "../../utils/TextUtils";
 import { EntityInterpolator } from "../../utils/EntityInterpolator";
+import { RemoteEnemy } from "./enemies/RemoteEnemy";
 
 interface RemotePlayerData {
   sprite: Phaser.Physics.Arcade.Sprite;
   interpolator: EntityInterpolator;
   animManager: AnimationManager;
   nameTag: Phaser.GameObjects.Text;
+  // THÊM MỚI: Đèn có thể có hoặc không, tùy vào scene
+  light?: Phaser.GameObjects.Light;
 }
 
 /**
@@ -25,7 +30,7 @@ interface RemotePlayerData {
  * TRÁCH NHIỆM:
  * - Lắng nghe các sự kiện onAdd, onRemove, onChange từ server.
  * - Tạo, quản lý và hủy các sprite của người chơi khác (remote players).
- * - Vô hiệu hóa vật lý cho remote players.
+ * - Tinh chỉnh vật lý cho remote players (tắt trọng lực khi bị bế, giữ va chạm).
  * - Áp dụng kỹ thuật nội suy (interpolation) để làm mượt chuyển động của remote players.
  * - Ra tín hiệu cho Scene khi cần tạo người chơi chính (local player).
  */
@@ -48,6 +53,9 @@ export class PlatformerNetworkHandler {
   private bombProxySprites: Map<string, Phaser.Physics.Arcade.Sprite> =
     new Map();
   private interactiveObjectManager!: InteractiveObjectManager;
+
+  // THÊM MỚI: Theo dõi remote enemies (Server-Authoritative AI)
+  private remoteEnemies: Map<string, RemoteEnemy> = new Map();
 
   // (Đã gom hằng số vào InterpolationUtils)
 
@@ -162,24 +170,137 @@ export class PlatformerNetworkHandler {
       }
     );
 
+    // THÊM MỚI: Listeners cho enemies (Server-Authoritative AI)
+    $(this.room.state).enemies.onAdd(this.addEnemyEntity);
+    $(this.room.state).enemies.onRemove(this.removeEnemyEntity);
+
+    // Lắng nghe thay đổi của từng enemy
+    $(this.room.state).enemies.onAdd(
+      (enemyState: EnemyStateSchema, enemyId: string) => {
+        // Setup listener cho enemy cụ thể này
+        $(enemyState).onChange(() => {
+          const enemy = this.remoteEnemies.get(enemyId);
+          if (enemy) {
+            enemy.updateState(enemyState);
+          }
+        });
+      }
+    );
+
+    // THÊM MỚI: Listeners cho instant spike traps
+    $(this.room.state).instantSpikeTraps.onAdd(
+      (trapState: any, trapId: string) => {
+        this.interactiveObjectManager?.spawnFromState(
+          "instant_spike_trap",
+          trapId,
+          trapState
+        );
+      }
+    );
+    $(this.room.state).instantSpikeTraps.onRemove(
+      (_trapState: any, trapId: string) => {
+        this.interactiveObjectManager?.despawn(trapId);
+      }
+    );
+
+    // ================== BẮT ĐẦU THÊM LOGIC MỚI CHO PHYSICS OBJECTS ==================
+
+    // 1. Lắng nghe các vật thể vật lý SẼ ĐƯỢC THÊM VÀO trong tương lai
+    // Colyseus sẽ TỰ ĐỘNG gọi onAdd cho tất cả vật thể ĐÃ TỒN TẠI khi client kết nối
+    // và cả những vật thể mới được tạo sau đó. KHÔNG CẦN forEach dư thừa!
+    $(this.room.state).physicsObjects.onAdd(
+      (physState: PhysicsObjectSchema, id: string) => {
+        console.log(
+          `[Client Network] PhysicsObject ADDED signal received: ${id} (asset: ${physState.assetKey})`
+        );
+        // Truyền cả state làm options để GenericPhysicsView có thể đọc assetKey
+        this.interactiveObjectManager?.spawnFromState(
+          "generic_physics_object",
+          id,
+          physState,
+          physState // Pass state as options to read assetKey and physics config
+        );
+      }
+    );
+
+    // 2. Lắng nghe các vật thể vật lý SẼ BỊ XÓA trong tương lai
+    $(this.room.state).physicsObjects.onRemove(
+      (_physState: PhysicsObjectSchema, id: string) => {
+        console.log(
+          `[Client Network] PhysicsObject REMOVED signal received: ${id}`
+        );
+        this.interactiveObjectManager?.despawn(id);
+      }
+    );
+
+    // ================== KẾT THÚC LOGIC MỚI CHO PHYSICS OBJECTS ==================
+
     console.log(
       `✅ PlatformerNetworkHandler state listeners setup successfully`
     );
   }
 
   /**
-   * Được gọi mỗi frame từ scene để nội suy chuyển động của người chơi khác.
+   * Được gọi mỗi frame từ scene để nội suy chuyển động và quản lý timer.
    */
   public update(): void {
-    this.remotePlayers.forEach((data) => {
-      const pos = data.interpolator.update();
-      if (pos) {
-        data.sprite.setPosition(pos.x, pos.y);
-        data.nameTag.setPosition(pos.x, pos.y - 60);
+    const CORRECTION_FACTOR = 10;
+    const TELEPORT_THRESHOLD = 250;
+
+    this.remotePlayers.forEach((data, sessionId) => {
+      // Lấy trạng thái mới nhất của người chơi này từ server state
+      const playerState = this.room.state.players.get(sessionId);
+      if (!playerState) return;
+
+      const targetPos = data.interpolator.update();
+
+      if (targetPos && data.sprite && data.sprite.body) {
+        const currentPos = data.sprite;
+        const body = data.sprite.body as Phaser.Physics.Arcade.Body;
+
+        // === LOGIC HYBRID MỚI ===
+        if (playerState.isGrabbed) {
+          // TRƯỜNG HỢP 1: Bị nắm/bế -> Dùng setPosition để có quyền lực tuyệt đối
+          // Vị trí là tuyệt đối, không cần hiệu chỉnh mượt mà bằng vật lý.
+          currentPos.setPosition(targetPos.x, targetPos.y);
+          // Tắt mọi vận tốc vật lý để tránh xung đột
+          body.setVelocity(0, 0);
+        } else {
+          // TRƯỜNG HỢP 2: Tự do -> Dùng setVelocity để di chuyển mượt mà
+          const distance = Phaser.Math.Distance.Between(
+            currentPos.x,
+            currentPos.y,
+            targetPos.x,
+            targetPos.y
+          );
+
+          if (distance > TELEPORT_THRESHOLD) {
+            currentPos.setPosition(targetPos.x, targetPos.y);
+            body.setVelocity(0, 0);
+          } else {
+            const errorX = targetPos.x - currentPos.x;
+            const errorY = targetPos.y - currentPos.y;
+            body.setVelocity(
+              errorX * CORRECTION_FACTOR,
+              errorY * CORRECTION_FACTOR
+            );
+          }
+        }
+
+        data.nameTag.setPosition(currentPos.x, currentPos.y - 60);
+
+        // THÊM MỚI: Cập nhật vị trí đèn của remote player
+        if (data.light) {
+          data.light.setPosition(currentPos.x, currentPos.y);
+        }
       }
     });
 
-    // Cập nhật InteractiveObjectManager
+    // THÊM MỚI: Cập nhật tất cả remote enemies
+    this.remoteEnemies.forEach((enemy) => {
+      enemy.update();
+    });
+
     this.interactiveObjectManager?.update(16.6667);
   }
 
@@ -275,7 +396,11 @@ export class PlatformerNetworkHandler {
       // BẬT va chạm với nền đất và cấu hình body để dùng nội suy velocity
       this.scene.physics.add.collider(entity, this.platformsLayer);
       const body = entity.body as Phaser.Physics.Arcade.Body;
-      body.setAllowGravity(true);
+
+      // --- THAY ĐỔI 1: Đặt trạng thái trọng lực ban đầu ---
+      // Nếu người chơi này vào phòng trong lúc đã bị bế, tắt trọng lực ngay
+      body.setAllowGravity(!playerState.isGrabbed);
+
       body.setCollideWorldBounds(true);
       body.setImmovable(true);
       body.pushable = false;
@@ -289,11 +414,26 @@ export class PlatformerNetworkHandler {
         characterData
       );
 
+      // THÊM MỚI: Tạo đèn cho remote player nếu scene có bật lighting
+      let remoteLight: Phaser.GameObjects.Light | undefined;
+      // Chỉ tạo đèn nếu scene hiện tại có bật hệ thống ánh sáng
+      if (this.scene.isLightingEnabled()) {
+        remoteLight = this.scene.lights.addLight(
+          playerState.x,
+          playerState.y,
+          120, // Bán kính nhỏ hơn một chút so với local player
+          0xffdab9, // Màu đào nhạt để phân biệt
+          1.0 // Cường độ yếu hơn một chút
+        );
+        console.log(`🔦 Added light source to remote player ${sessionId}`);
+      }
+
       const remoteData: RemotePlayerData = {
         sprite: entity,
         interpolator: new EntityInterpolator(),
         animManager,
         nameTag,
+        light: remoteLight, // Lưu đèn vào remoteData
       };
       // seed first snapshot to avoid null on first frames
       remoteData.interpolator.addSnapshot(playerState.x, playerState.y);
@@ -304,6 +444,21 @@ export class PlatformerNetworkHandler {
       ($ as any)(playerState).onChange(() => {
         const data = this.remotePlayers.get(sessionId);
         if (!data) return;
+
+        // --- LOGIC CẬP NHẬT MỚI: Tinh chỉnh vật lý thay vì tắt hoàn toàn ---
+        const remoteBody = data.sprite.body as Phaser.Physics.Arcade.Body;
+
+        if (playerState.isGrabbed) {
+          // Giữ cho vật thể "rắn" nhưng không bị ảnh hưởng bởi trọng lực
+          remoteBody.setAllowGravity(false);
+          // Dừng mọi chuyển động vật lý cục bộ, vị trí sẽ do interpolator quyết định
+          remoteBody.setVelocity(0, 0);
+        } else {
+          // Trường hợp thông thường (không bị nắm), bật lại trọng lực
+          remoteBody.setAllowGravity(true);
+        }
+        // --- KẾT THÚC LOGIC CẬP NHẬT MỚI ---
+
         data.interpolator.addSnapshot(playerState.x, playerState.y);
         data.nameTag.setText(playerState.username);
         data.animManager.playAnimation(playerState.animState as AnimationState);
@@ -326,6 +481,12 @@ export class PlatformerNetworkHandler {
       this.remotePlayersGroup.remove(data.sprite, true, true);
       data.animManager.destroy();
       data.nameTag.destroy();
+
+      // THÊM MỚI: Dọn dẹp đèn của remote player
+      if (data.light) {
+        this.scene.lights.removeLight(data.light);
+      }
+
       this.remotePlayers.delete(sessionId);
     }
 
@@ -372,6 +533,69 @@ export class PlatformerNetworkHandler {
     return closestPlayer;
   }
 
+  // THÊM MỚI: Handlers cho Enemy entities (Server-Authoritative AI)
+
+  /**
+   * Xử lý khi có enemy mới được spawn từ server
+   */
+  private addEnemyEntity = (enemyState: EnemyStateSchema, enemyId: string) => {
+    if (this.remoteEnemies.has(enemyId)) {
+      return;
+    }
+
+    try {
+      const enemy = new RemoteEnemy(
+        this.scene,
+        enemyState.x,
+        enemyState.y,
+        enemyState.enemyType
+      );
+
+      // Áp dụng lighting pipeline nếu scene hỗ trợ
+      if (this.scene.isLightingEnabled && this.scene.isLightingEnabled()) {
+        enemy.applyLightingPipeline();
+      }
+
+      this.remoteEnemies.set(enemyId, enemy);
+
+      // Cập nhật state ban đầu
+      enemy.updateState(enemyState);
+    } catch (error) {
+      console.error(
+        `[Client] Failed to create remote enemy ${enemyId}:`,
+        error
+      );
+    }
+  };
+
+  /**
+   * Xử lý khi enemy bị xóa từ server
+   */
+  private removeEnemyEntity = (
+    enemyState: EnemyStateSchema,
+    enemyId: string
+  ) => {
+    const enemy = this.remoteEnemies.get(enemyId);
+    if (enemy) {
+      enemy.destroy();
+      this.remoteEnemies.delete(enemyId);
+    }
+  };
+
+  /**
+   * Lấy remote enemy theo ID
+   */
+  public getRemoteEnemy(enemyId: string): RemoteEnemy | undefined {
+    return this.remoteEnemies.get(enemyId);
+  }
+
+  /**
+   * Lấy tất cả remote enemies
+   */
+  public getAllRemoteEnemies(): Map<string, RemoteEnemy> {
+    return this.remoteEnemies;
+  }
+
   /**
    * Dọn dẹp tài nguyên khi scene kết thúc.
    */
@@ -388,6 +612,10 @@ export class PlatformerNetworkHandler {
     this.bombMatterSprites.clear();
     this.bombProxySprites.forEach((s) => s.destroy());
     this.bombProxySprites.clear();
+
+    // THÊM MỚI: Dọn dẹp remote enemies
+    this.remoteEnemies.forEach((enemy) => enemy.destroy());
+    this.remoteEnemies.clear();
 
     this.createdPlayers.clear(); // 🔧 Clear tracking
     console.log("🗑️ PlatformerNetworkHandler cleaned up.");

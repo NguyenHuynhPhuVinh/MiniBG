@@ -14,6 +14,7 @@ export const SCENE_KEYS = {
   PRELOAD: "PreloadScene", // Scene loading assets
   ORIGIN_VALLEY: "OriginValleyScene", // New name for Forest
   TEMPEST_PEAK: "TempestPeakScene", // New name for Desert
+  WHISPERING_CAVERNS: "WhisperingCavernsScene", // Hang Động Thì Thầm
 
   // Legacy keys (deprecated - giữ tạm cho tương thích ngược)
   GAME: "GameScene", // @deprecated

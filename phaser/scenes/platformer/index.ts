@@ -26,6 +26,7 @@ export { PlatformerPlayerHandler } from "./PlatformerPlayerHandler";
 // === CONCRETE SCENES ===
 export { OriginValleyScene } from "./OriginValleyScene";
 export { TempestPeakScene } from "./TempestPeakScene";
+export { WhisperingCavernsScene } from "./WhisperingCavernsScene";
 
 // === TYPE DEFINITIONS ===
 export interface PlatformerSceneConfig {

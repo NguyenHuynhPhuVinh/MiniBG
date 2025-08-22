@@ -54,16 +54,28 @@ export class MobileUIHandler {
       .setScrollFactor(0)
       .setDepth(10001);
 
-    // --- Nút hành động (xếp dọc ở góc phải): jump dưới, grab trên ---
-    const actionX = width - cfg.right - size / 2; // không phụ thuộc bottom
-    const jumpY = baseY; // dưới
-    const grabY = baseY - size - cfg.spacing; // trên
-    const jumpButton = this.createButton("button_jump", actionX, jumpY, "jump");
-    jumpButton.setDisplaySize(size, size).setScrollFactor(0).setDepth(10001);
-    const grabButton = this.createButton("button_grab", actionX, grabY, "grab");
-    grabButton.setDisplaySize(size, size).setScrollFactor(0).setDepth(10001);
+    // --- CỤM NÚT HÀNH ĐỘNG (BÊN PHẢI, LAYOUT MỚI) ---
+    
+    // Vị trí Y cho hàng dưới cùng (Jump và Grab)
+    const bottomRowY = height - cfg.bottom - size / 2;
 
-    this.container.add([dpadLeft, dpadRight, jumpButton, grabButton]);
+    // Vị trí X cho Jump (bên phải) và Grab (bên trái của Jump)
+    const jumpX = width - cfg.right - size / 2;
+    const grabX = jumpX - size - cfg.spacing;
+
+    // Vị trí cho nút Carry (ở trên nút Jump)
+    const carryX = jumpX; // Nằm thẳng hàng với nút Jump
+    const carryY = bottomRowY - size - cfg.spacing;
+
+    // Tạo các nút với vị trí mới
+    const jumpButton = this.createButton("button_jump", jumpX, bottomRowY, "jump");
+    jumpButton.setDisplaySize(size, size).setScrollFactor(0).setDepth(10001);
+    const grabButton = this.createButton("button_grab", grabX, bottomRowY, "grab");
+    grabButton.setDisplaySize(size, size).setScrollFactor(0).setDepth(10001);
+    const carryButton = this.createButton("button_carry", carryX, carryY, "carry");
+    carryButton.setDisplaySize(size, size).setScrollFactor(0).setDepth(10001);
+
+    this.container.add([dpadLeft, dpadRight, jumpButton, grabButton, carryButton]);
 
     // Reposition khi thay đổi kích thước
     this.resizeHandler = () => this.reposition();
@@ -109,17 +121,26 @@ export class MobileUIHandler {
     const baseY = height - cfg.bottom - dpadSize / 2;
     const leftX = cfg.left + dpadSize / 2;
     const rightX = leftX + dpadSize + dpadSpacing;
-    const actionX = width - cfg.right - size / 2;
-    const jumpY = baseY;
-    const grabY = baseY - size - cfg.spacing;
+    
+    // --- CẬP NHẬT REPOSITION CHO CỤM NÚT HÀNH ĐỘNG (LAYOUT MỚI) ---
+    const bottomRowY = height - cfg.bottom - size / 2;
+    const jumpX = width - cfg.right - size / 2;
+    const grabX = jumpX - size - cfg.spacing;
+    const carryX = jumpX; // Cùng cột với Jump
+    const carryY = bottomRowY - size - cfg.spacing;
 
     const children = this.container.list as Phaser.GameObjects.Image[];
-    if (children.length >= 4) {
-      const [dpadLeft, dpadRight, jumpButton, grabButton] = children;
+    if (children.length >= 5) { // Đảm bảo có đủ 5 nút
+      const [dpadLeft, dpadRight, jumpButton, grabButton, carryButton] = children;
+      
+      // D-pad
       dpadLeft.setPosition(leftX, baseY).setDisplaySize(dpadSize, dpadSize);
       dpadRight.setPosition(rightX, baseY).setDisplaySize(dpadSize, dpadSize);
-      jumpButton.setPosition(actionX, jumpY).setDisplaySize(size, size);
-      grabButton.setPosition(actionX, grabY).setDisplaySize(size, size);
+      
+      // Action buttons
+      jumpButton.setPosition(jumpX, bottomRowY).setDisplaySize(size, size);
+      grabButton.setPosition(grabX, bottomRowY).setDisplaySize(size, size);
+      carryButton.setPosition(carryX, carryY).setDisplaySize(size, size);
     }
   }
 

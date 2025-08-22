@@ -5,6 +5,7 @@ import { DisappearingBehavior } from "./DisappearingBehavior";
 import { SnowBehavior } from "./SnowBehavior";
 import { HazardBehavior } from "./HazardBehavior";
 import { SinkingSandBehavior } from "./SinkingSandBehavior";
+import { WaterBehavior } from "./WaterBehavior";
 
 /**
  * Nhà máy Singleton để quản lý và cung cấp các lớp hành vi cho gạch.
@@ -20,6 +21,7 @@ export class TileBehaviorFactory {
     this.register("snow", new SnowBehavior());
     this.register("hazard", new HazardBehavior());
     this.register("sinkingSand", new SinkingSandBehavior());
+    this.register("water", new WaterBehavior());
   }
 
   public static getInstance(): TileBehaviorFactory {

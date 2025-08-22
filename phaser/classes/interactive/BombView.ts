@@ -33,11 +33,13 @@ export class BombView implements IInteractiveObjectView {
       { label: `bomb_${this.id}` } as any
     );
     bombSprite.setDepth(450);
-    bombSprite.setCircle(32);
-    bombSprite.setFriction(0.01);
-    bombSprite.setFrictionAir(0.001);
-    bombSprite.setBounce(0.8);
-    bombSprite.setDensity(0.02);
+    bombSprite.setCircle(32); // Giữ nguyên hình tròn để lăn tốt
+
+    // === CẤU HÌNH VẬT LÝ MỚI CHO CẢM GIÁC NĂNG ĐỘNG ===
+    bombSprite.setBounce(0.5); // Nảy 50% - Chỉ nảy cao khi va chạm mạnh!
+    bombSprite.setFriction(0.05); // Ma sát lăn thấp để lăn xa và mượt.
+    bombSprite.setFrictionAir(0.01); // Tăng cản không khí để rơi dứt khoát.
+    bombSprite.setDensity(0.1); // TĂNG MẬT ĐỘ 10 LẦN -> RẤT NẶNG!
     this.matterSprite = bombSprite;
 
     const proxy = (scene as any).physics.add.sprite(s.x, s.y, "bomb");

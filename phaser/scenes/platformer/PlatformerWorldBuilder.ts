@@ -1,11 +1,22 @@
 import { BasePlatformerScene } from "./BasePlatformerScene";
 import { PlatformerLogicCore } from "./PlatformerLogicCore";
+import { EnemyType } from "../../classes/platformer/enemies/EnemyFrames";
+import { SwingingSawTrap } from "../../classes/platformer/SwingingSawTrap";
 
 // THÊM MỚI: Interface để chứa dữ liệu tile tương tác
 interface InteractiveTileData {
   id: string;
   x: number;
   y: number;
+}
+
+// THÊM MỚI: Interface để chứa dữ liệu spawn enemy
+export interface EnemySpawnData {
+  x: number;
+  y: number;
+  type: EnemyType;
+  // THÊM MỚI: Thêm patrolBounds để truyền vùng hoạt động cho AI
+  patrolBounds?: Phaser.Geom.Rectangle;
 }
 
 /**
@@ -47,6 +58,7 @@ export class PlatformerWorldBuilder {
   public build(): {
     platformsLayer: Phaser.Tilemaps.TilemapLayer;
     foregroundLayer?: Phaser.Tilemaps.TilemapLayer;
+    waterSurfaceLayer?: Phaser.Tilemaps.TilemapLayer; // <-- Thêm dòng này
     // THÊM MỚI: Trả về danh sách lò xo
     springsData: InteractiveTileData[];
   } {
@@ -93,11 +105,56 @@ export class PlatformerWorldBuilder {
       console.log("ℹ️ No Foreground layer found in tilemap JSON");
     }
 
+    // === LOGIC MỚI: TẠO LAYER MẶT NƯỚC ===
+    let waterSurfaceLayer: Phaser.Tilemaps.TilemapLayer | undefined;
+    if (this.tilemap.getLayer("WaterSurface")) {
+      waterSurfaceLayer =
+        this.tilemap.createLayer("WaterSurface", [
+          tilesTileset,
+          backgroundTileset,
+        ]) || undefined;
+
+      if (waterSurfaceLayer) {
+        // LÀM MỜ VÀ ĐẶT LÊN TRÊN PLAYER
+        waterSurfaceLayer.setAlpha(0.6); // Độ mờ 60%
+        waterSurfaceLayer.setDepth(900); // Đặt độ sâu cao hơn player (thường là 100-500)
+        console.log(
+          "💧 WaterSurface layer created with alpha 0.6 and depth 900"
+        );
+      }
+    }
+    // ===================================
+
+    // VVV THÊM KHỐI LOGIC NÀY VÀO VVV
+    // Hỏi scene xem có cần bật đèn không
+    if (
+      (this.scene as any).isLightingEnabled &&
+      (this.scene as any).isLightingEnabled()
+    ) {
+      console.log(
+        "Builder: This is a lighting-enabled scene. Applying pipeline to all layers."
+      );
+
+      // Áp dụng pipeline cho TẤT CẢ các layer đã tạo
+      if (backgroundLayer) {
+        backgroundLayer.setPipeline("Light2D");
+      }
+      platformsLayer.setPipeline("Light2D");
+      if (foregroundLayer) {
+        foregroundLayer.setPipeline("Light2D");
+      }
+      if (waterSurfaceLayer) {
+        waterSurfaceLayer.setPipeline("Light2D");
+      }
+    }
+    // ^^^ KẾT THÚC KHỐI LOGIC MỚI ^^^
+
     // 3. Tối ưu render quality cho tất cả layers
     this.optimizeRenderQuality(
       backgroundLayer,
       platformsLayer,
-      foregroundLayer
+      foregroundLayer,
+      waterSurfaceLayer // <-- Thêm vào đây
     );
 
     // 4. Setup collision cho platforms
@@ -118,11 +175,56 @@ export class PlatformerWorldBuilder {
     // Lưu ý: Việc thay thế tile bằng sprite sẽ diễn ra sau khi các layer được tạo
     const springsData = this.collectInteractiveTiles("spring");
 
+    // 8. THAY ĐỔI QUAN TRỌNG: Gọi hàm mới
+    this.setupLightingFromTiles(platformsLayer);
+
     console.log(
       `🗺️ World built: ${this.tilemap.widthInPixels}x${this.tilemap.heightInPixels}`
     );
 
-    return { platformsLayer, foregroundLayer, springsData };
+    return { platformsLayer, foregroundLayer, waterSurfaceLayer, springsData }; // <-- Thêm waterSurfaceLayer vào return
+  }
+
+  /**
+   * 🔥 HÀM MỚI: Quét một Tile Layer để tìm các tile có thuộc tính 'light_source'
+   * và tạo ra các nguồn sáng điểm tại vị trí của chúng.
+   */
+  private setupLightingFromTiles(layer: Phaser.Tilemaps.TilemapLayer): void {
+    console.log(
+      `💡 Scanning Tile Layer "${layer.layer.name}" for light sources...`
+    );
+    let lightCount = 0;
+
+    // Quét qua tất cả các tile trong layer được chỉ định
+    layer.forEachTile((tile: Phaser.Tilemaps.Tile) => {
+      // Nếu tile có thuộc tính 'type' là 'light_source'
+      if (tile.properties.type === "light_source") {
+        // Lấy tọa độ tâm của tile (đơn vị pixel)
+        const lightX = tile.getCenterX();
+        const lightY = tile.getCenterY();
+
+        // Tạo một nguồn sáng tại vị trí đó
+        const light = this.scene.lights.addLight(lightX, lightY, 200); // Bán kính 200px
+        light.setColor(0xffa500); // Màu cam ấm
+        light.setIntensity(1.5);
+
+        // Tạo hiệu ứng lập lòe
+        this.scene.tweens.add({
+          targets: light,
+          intensity: { from: 1.4, to: 1.6 },
+          duration: 700,
+          ease: "Sine.easeInOut",
+          yoyo: true,
+          repeat: -1,
+        });
+
+        lightCount++;
+      }
+    });
+
+    console.log(
+      `💡 Created ${lightCount} flickering torch lights from Tile Layer.`
+    );
   }
 
   /**
@@ -185,10 +287,13 @@ export class PlatformerWorldBuilder {
           obj.name.includes("finish") ||
           obj.name.includes("level_end") ||
           obj.name.includes("checkpoint") ||
-          obj.name.includes("secret"))
+          obj.name.includes("secret") ||
+          obj.name === "fall_through_zone") // THÊM MỚI: Thêm điều kiện này vào
     );
 
-    console.log(`🎯 Found ${interactiveObjects.length} interactive objects`);
+    console.log(
+      `🎯 Found ${interactiveObjects.length} interactive objects (including fall zones)`
+    );
 
     // Tạo zones cho tất cả objects
     interactiveObjects.forEach((obj: any) => {
@@ -214,7 +319,7 @@ export class PlatformerWorldBuilder {
   ): void {
     // Tính tọa độ Phaser từ Tiled (chuyển đổi coordinate system)
     const phaserX = obj.x + obj.width / 2;
-    const phaserY = obj.y;
+    const phaserY = obj.y + obj.height / 2; // Sửa lại để lấy tâm Y cho chính xác hơn
 
     // Tạo invisible zone
     const zone = this.scene.add.zone(phaserX, phaserY, obj.width, obj.height);
@@ -225,14 +330,35 @@ export class PlatformerWorldBuilder {
     body.setAllowGravity(false);
     body.moves = false;
 
-    // Setup overlap detection với logic core handling
-    this.scene.physics.add.overlap(player, zone, () => {
-      logicCore.handleInteractiveObject(obj.name, obj, this.scene);
-    });
+    // === SỬA ĐỔI BẮT ĐẦU TẠI ĐÂY ===
 
-    console.log(
-      `🎯 Created interactive zone: ${obj.name} at (${phaserX}, ${phaserY})`
-    );
+    // 1. Lấy đối tượng Player từ scene
+    const playerInstance = this.scene.getPlayer();
+    if (!playerInstance) return;
+
+    // 2. Phân loại và xử lý logic tương tác
+    if (obj.name === "fall_through_zone") {
+      // === SỬA ĐỔI LOGIC TẠI ĐÂY ===
+      // Overlap này sẽ chạy LIÊN TỤC mỗi frame khi người chơi ở trong zone.
+      this.scene.physics.add.overlap(player, zone, () => {
+        // Gọi phương thức mới để set cả hai cờ
+        playerInstance.markAsInFallZone();
+        // KHÔNG HỦY ZONE NỮA.
+      });
+      console.log(
+        `☠️ Created PERSISTENT fall-through zone at (${phaserX}, ${phaserY})`
+      );
+      // ===========================
+    } else {
+      // Logic cũ cho các object khác (checkpoint, finish...)
+      this.scene.physics.add.overlap(player, zone, () => {
+        logicCore.handleInteractiveObject(obj.name, obj, this.scene);
+      });
+      console.log(
+        `🎯 Created interactive zone: ${obj.name} at (${phaserX}, ${phaserY})`
+      );
+    }
+    // === KẾT THÚC SỬA ĐỔI ===
   }
 
   /**
@@ -245,7 +371,8 @@ export class PlatformerWorldBuilder {
   private optimizeRenderQuality(
     backgroundLayer: Phaser.Tilemaps.TilemapLayer | null,
     platformsLayer: Phaser.Tilemaps.TilemapLayer,
-    foregroundLayer?: Phaser.Tilemaps.TilemapLayer
+    foregroundLayer?: Phaser.Tilemaps.TilemapLayer,
+    waterSurfaceLayer?: Phaser.Tilemaps.TilemapLayer // <-- Thêm tham số
   ): void {
     // Tắt culling để tránh tiles biến mất khi camera di chuyển
     if (backgroundLayer) {
@@ -256,6 +383,9 @@ export class PlatformerWorldBuilder {
     }
     if (foregroundLayer) {
       foregroundLayer.setSkipCull(true);
+    }
+    if (waterSurfaceLayer) {
+      waterSurfaceLayer.setSkipCull(true); // <-- Thêm dòng này
     }
 
     console.log("🎨 Render quality optimized for all layers");
@@ -413,6 +543,11 @@ export class PlatformerWorldBuilder {
       case "Platforms":
         spriteDepth = 0; // Cùng level với player
         break;
+      // === THÊM CASE NÀY VÀO ===
+      case "WaterSurface":
+        spriteDepth = 900; // Đảm bảo sprite animation cũng che player
+        break;
+      // ==========================
       case "Foreground":
         spriteDepth = 1000; // Phía trước player (che player)
         break;
@@ -446,6 +581,18 @@ export class PlatformerWorldBuilder {
           tileset.image.key,
           tile.index.toString() // Sử dụng string frame name
         );
+
+        // === THÊM DÒNG NÀY ĐỂ ĐỒNG BỘ ALPHA ===
+        // Lấy giá trị alpha trực tiếp từ layer gốc và áp dụng cho sprite
+        animSprite.setAlpha(layer.alpha);
+        // =====================================
+
+        // VVV THÊM KHỐI LỆNH NÀY VÀO VVV
+        // Hỏi scene xem có cần áp dụng hiệu ứng ánh sáng không
+        if (this.scene.isLightingEnabled()) {
+          animSprite.setPipeline("Light2D");
+        }
+        // ^^^ KẾT THÚC KHỐI LỆNH MỚI ^^^
 
         // =================== LOGIC MỚI THÊM VÀO ===================
         // ĐỌC DỮ LIỆU ROTATION VÀ FLIP TỪ TILE
@@ -621,5 +768,169 @@ export class PlatformerWorldBuilder {
           bombLifetime: bombLifetimeProp?.value ?? 10.0,
         };
       });
+  }
+
+  // THÊM MỚI: Một phương thức để tìm và phân tích tất cả các vùng tuần tra
+  public findPatrolZones(): Map<string, Phaser.Geom.Rectangle> {
+    const patrolZones = new Map<string, Phaser.Geom.Rectangle>();
+    const objectLayer = this.tilemap.getObjectLayer("Enemies"); // Hoặc một layer riêng cho zones
+
+    if (objectLayer) {
+      objectLayer.objects.forEach((obj: any) => {
+        // Tìm các object có tên chứa 'zone' để định danh là vùng tuần tra
+        if (obj.name && obj.name.includes("_zone_")) {
+          patrolZones.set(
+            obj.name,
+            new Phaser.Geom.Rectangle(obj.x, obj.y, obj.width, obj.height)
+          );
+        }
+      });
+    }
+    console.log(`🗺️ Found ${patrolZones.size} patrol zones in Tiled.`);
+    return patrolZones;
+  }
+
+  // THÊM MỚI: Tìm điểm spawn của kẻ thù từ Object layer
+  public findEnemySpawnPoints(): EnemySpawnData[] {
+    // THÊM MỚI: Lấy tất cả các vùng tuần tra trước
+    const patrolZones = this.findPatrolZones();
+
+    const objectLayer = this.tilemap.getObjectLayer("Enemies");
+    if (!objectLayer) {
+      console.warn("⚠️ Enemies object layer not found in tilemap");
+      return [];
+    }
+
+    return objectLayer.objects
+      .filter((obj: any) => obj.properties?.find((p: any) => p.name === "type"))
+      .map((obj: any) => {
+        const typeProp = obj.properties.find((p: any) => p.name === "type");
+
+        // THÊM MỚI: Tìm patrolZone được gán cho enemy này
+        const patrolZoneProp = obj.properties.find(
+          (p: any) => p.name === "patrolZone"
+        );
+        const patrolBounds = patrolZoneProp
+          ? patrolZones.get(patrolZoneProp.value)
+          : undefined;
+
+        return {
+          x: obj.x,
+          y: obj.y - 32, // Trừ 32 vì gốc tọa độ của Tiled
+          type: typeProp.value as EnemyType,
+          // THÊM MỚI: Gán vùng tuần tra vào dữ liệu spawn
+          patrolBounds: patrolBounds,
+        };
+      })
+      .filter((spawn) => spawn.type); // Chỉ lấy những spawn có type hợp lệ
+  }
+
+  // THÊM MỚI: Tìm các instant spike traps từ Object layer
+  public findInstantSpikeTraps(): { x: number; y: number }[] {
+    const objectLayer = this.tilemap.getObjectLayer("Objects");
+    if (!objectLayer) return [];
+
+    return objectLayer.objects
+      .filter((obj: any) => obj.name === "instant_spike_trap")
+      .map((obj: any) => ({
+        x: obj.x + obj.width / 2, // Lấy tọạ độ tâm của object
+        y: obj.y + obj.height / 2,
+      }));
+  }
+
+  // THÊM MỚI: Tìm các generic physics spawners từ Object layer
+  public findPhysicsObjectSpawners(): any[] {
+    const objectLayer = this.tilemap.getObjectLayer("Objects");
+    if (!objectLayer) return [];
+
+    return objectLayer.objects
+      .filter((obj: any) => obj.name === "phys_spawn")
+      .map((obj: any) => {
+        const properties: any = {};
+        // Đọc tất cả custom properties từ Tiled
+        if (obj.properties) {
+          for (const prop of obj.properties) {
+            properties[prop.name] = prop.value;
+          }
+        }
+
+        return {
+          x: obj.x + obj.width / 2,
+          y: obj.y + obj.height / 2,
+          ...properties, // Gộp tất cả properties vào
+        };
+      });
+  }
+
+  // THÊM MỚI: Tìm các rock spawners từ Object layer
+  public findRockSpawners(): { x: number; y: number }[] {
+    const objectLayer = this.tilemap.getObjectLayer("Objects");
+    if (!objectLayer) return [];
+
+    return objectLayer.objects
+      .filter((obj: any) => obj.name === "rock_spawn")
+      .map((obj: any) => ({
+        x: obj.x + obj.width / 2, // Lấy tâm
+        y: obj.y + obj.height / 2,
+      }));
+  }
+
+  /**
+   * 🪚 BUILD TRAPS - Tạo các bẫy phức tạp từ dữ liệu Tiled
+   *
+   * Quét Object Layer để tìm và tạo các bẫy như swinging_saw_trap.
+   * Mỗi bẫy có thể có các thuộc tính tùy chỉnh như chainLength, angularVelocity.
+   *
+   * @returns Mảng các SwingingSawTrap đã được tạo
+   */
+  public buildTraps(): SwingingSawTrap[] {
+    const traps: SwingingSawTrap[] = [];
+    const objectLayer = this.tilemap.getObjectLayer("Objects");
+
+    if (!objectLayer) {
+      console.warn("⚠️ Cannot build traps: Objects layer not found.");
+      return [];
+    }
+
+    objectLayer.objects.forEach((obj: any) => {
+      if (obj.name === "swinging_saw_trap") {
+        console.log(`🏗️ Building swinging saw trap at (${obj.x}, ${obj.y})`);
+
+        // Đọc thuộc tính chainLength từ Tiled (mặc định 200)
+        const chainLengthProp = obj.properties?.find(
+          (p: any) => p.name === "chainLength"
+        );
+        const chainLength = chainLengthProp ? chainLengthProp.value : 200;
+
+        // Đọc thuộc tính angularVelocity từ Tiled (mặc định 1.0)
+        const angularVelProp = obj.properties?.find(
+          (p: any) => p.name === "angularVelocity"
+        );
+        const angularVelocity = angularVelProp ? angularVelProp.value : 1.0;
+
+        // Đọc thuộc tính motorSpeed từ Tiled (mặc định 0.02)
+        const motorSpeedProp = obj.properties?.find(
+          (p: any) => p.name === "motorSpeed"
+        );
+        const motorSpeed = motorSpeedProp ? motorSpeedProp.value : 0.02;
+
+        // Tạo bẫy với các thông số đã đọc
+        const trap = new SwingingSawTrap(
+          this.scene,
+          obj.x, // Vị trí X từ Tiled
+          obj.y, // Vị trí Y từ Tiled
+          obj.width || 64, // Truyền width từ Tiled (mặc định 64)
+          obj.height || 64, // Truyền height từ Tiled (mặc định 64)
+          chainLength,
+          angularVelocity,
+          motorSpeed // Truyền motorSpeed
+        );
+
+        traps.push(trap);
+      }
+    });
+
+    console.log(`✅ Built ${traps.length} complex traps.`);
+    return traps;
   }
 }

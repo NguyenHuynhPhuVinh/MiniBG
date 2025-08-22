@@ -10,6 +10,7 @@ export interface InputState {
   down: boolean; // ↓ hoặc S
   jump: boolean; // Space hoặc ↑ hoặc W
   grab: boolean; // E - Hành động nắm người chơi khác
+  carry: boolean; // F - Hành động bế/ném người chơi khác
 }
 
 /**
@@ -27,6 +28,7 @@ export class InputManager {
   private wasdKeys?: any; // WASD keys
   private spaceKey?: Phaser.Input.Keyboard.Key; // Space key
   private grabKey?: Phaser.Input.Keyboard.Key; // E key cho grab
+  private carryKey?: Phaser.Input.Keyboard.Key; // F key cho carry/throw
   private inputState: InputState = {
     left: false,
     right: false,
@@ -34,6 +36,7 @@ export class InputManager {
     down: false,
     jump: false,
     grab: false,
+    carry: false,
   };
 
   // THÊM MỚI: State dành cho input trên thiết bị di động
@@ -44,6 +47,7 @@ export class InputManager {
     down: false,
     jump: false,
     grab: false,
+    carry: false,
   };
 
   // THÊM MỚI: Bộ cờ JustPressed cho mobile (được set tại thời điểm pointerdown)
@@ -54,6 +58,7 @@ export class InputManager {
     down: false,
     jump: false,
     grab: false,
+    carry: false,
   };
 
   constructor(scene: Scene) {
@@ -68,7 +73,7 @@ export class InputManager {
     // Arrow keys (←↑→↓)
     this.cursors = this.scene.input.keyboard?.createCursorKeys();
 
-    // WASD keys, Space key và E key
+    // WASD keys, Space key, E key và F key
     if (this.scene.input.keyboard) {
       this.wasdKeys = this.scene.input.keyboard.addKeys("W,S,A,D");
       this.spaceKey = this.scene.input.keyboard.addKey(
@@ -76,6 +81,9 @@ export class InputManager {
       );
       this.grabKey = this.scene.input.keyboard.addKey(
         Phaser.Input.Keyboard.KeyCodes.E
+      );
+      this.carryKey = this.scene.input.keyboard.addKey(
+        Phaser.Input.Keyboard.KeyCodes.F
       );
     }
   }
@@ -139,8 +147,16 @@ export class InputManager {
       this.inputState.grab = this.grabKey.isDown;
     }
 
+    // Đọc F key cho carry/throw
+    if (this.carryKey) {
+      this.inputState.carry = this.carryKey.isDown;
+    }
+
     // THÊM MỚI: Grab từ mobile
     this.inputState.grab = this.inputState.grab || this.mobileState.grab;
+
+    // THÊM MỚI: Carry từ mobile
+    this.inputState.carry = this.inputState.carry || this.mobileState.carry;
 
     return { ...this.inputState };
   }
@@ -206,6 +222,12 @@ export class InputManager {
           (this.grabKey?.isDown &&
             Phaser.Input.Keyboard.JustDown(this.grabKey)) ||
           consumeMobile("grab")
+        );
+      case "carry":
+        return (
+          (this.carryKey?.isDown &&
+            Phaser.Input.Keyboard.JustDown(this.carryKey)) ||
+          consumeMobile("carry")
         );
       default:
         return consumeMobile(key);

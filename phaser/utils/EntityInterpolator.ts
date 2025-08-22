@@ -10,8 +10,8 @@ interface StateSnapshot {
  */
 export class EntityInterpolator {
   private buffer: StateSnapshot[] = [];
-  private readonly INTERPOLATION_DELAY_MS = 100;
-  private readonly BUFFER_SIZE_LIMIT = 30;
+  private readonly INTERPOLATION_DELAY_MS = 80; // Giảm delay để responsive hơn
+  private readonly BUFFER_SIZE_LIMIT = 20; // Giảm buffer size để tiết kiệm memory
 
   public addSnapshot(x: number, y: number): void {
     const timestamp = Date.now();

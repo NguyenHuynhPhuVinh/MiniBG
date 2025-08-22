@@ -17,6 +17,7 @@ import { PlatformerLogicCore } from "./PlatformerLogicCore";
 import { PlatformerWorldBuilder } from "./PlatformerWorldBuilder";
 import { PlatformerPlayerHandler } from "./PlatformerPlayerHandler";
 import { PlatformerNetworkHandler } from "../../classes/platformer/PlatformerNetworkHandler";
+import { SwingingSawTrap } from "../../classes/platformer/SwingingSawTrap";
 import { IPlatformerRules } from "./rules/IPlatformerRules";
 import { Room } from "colyseus.js";
 import {
@@ -24,6 +25,8 @@ import {
   Player as PlayerStateSchema,
 } from "../../classes/core/types/GameRoomState";
 import { IEnvironmentalEffect } from "../../classes/platformer/effects";
+import { RemoteEnemy } from "../../classes/platformer/enemies/RemoteEnemy";
+// import { EnemyManager } from "../../classes/platformer/enemies/EnemyManager"; // KHÔNG CẦN NỮA - Server-Authoritative AI
 
 /**
  * 🎮 BASE PLATFORMER SCENE - Cấp 2: Lớp cơ sở cho dạng chơi Platformer
@@ -64,6 +67,7 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   protected tilemap!: Phaser.Tilemaps.Tilemap; // Bản đồ game từ Tiled
   protected platformsLayer!: Phaser.Tilemaps.TilemapLayer; // Layer chứa platforms và xu
   protected foregroundLayer?: Phaser.Tilemaps.TilemapLayer; // Layer foreground (tùy chọn)
+  protected waterSurfaceLayer?: Phaser.Tilemaps.TilemapLayer; // <-- Thêm thuộc tính này
 
   // === GAME OBJECTS ===
   protected player!: Player; // Nhân vật chính
@@ -126,8 +130,24 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   private lastCheckpoint: { x: number; y: number } | null = null;
   private isRespawning: boolean = false; // Cờ để tránh respawn chồng chéo
 
+  // === COMPLEX TRAPS ===
+  private complexTraps: SwingingSawTrap[] = []; // Lưu trữ các bẫy phức tạp
+
   // === ENVIRONMENTAL EFFECTS ===
   protected environmentalEffect: IEnvironmentalEffect | null = null;
+
+  // === ENEMY SYSTEM ===
+  // protected enemyManager!: EnemyManager; // KHÔNG CẦN NỮA - Server-Authoritative AI
+
+  /**
+   * "Công tắc" để các hệ thống khác biết scene này có sử dụng
+   * hệ thống ánh sáng 2D hay không.
+   * Mặc định là TẮT. Các scene tối như hang động sẽ ghi đè (override)
+   * phương thức này để trả về true.
+   */
+  public isLightingEnabled(): boolean {
+    return false;
+  }
 
   /**
    * 🎬 PRELOAD - Load assets chung và riêng cho platformer
@@ -193,6 +213,12 @@ export abstract class BasePlatformerScene extends BaseGameScene {
       "/kenney_new-platformer-pack-1.0/Spritesheets/spritesheet-characters-default.png"
     );
 
+    // Load enemy spritesheet
+    this.load.image(
+      "spritesheet-enemies",
+      "/kenney_new-platformer-pack-1.0/Spritesheets/spritesheet-enemies-default.png"
+    );
+
     // Load common sound effects
     this.load.audio(
       "coin",
@@ -233,6 +259,32 @@ export abstract class BasePlatformerScene extends BaseGameScene {
       "/kenney_top-down-tanks-redux/PNG/Default size/explosion5.png"
     );
 
+    // THÊM MỚI: Assets cho bẫy răng cưa xoay tròn
+    this.load.image(
+      "saw",
+      "/kenney_new-platformer-pack-1.0/Sprites/Tiles/Default/saw.png"
+    );
+    this.load.image(
+      "chain",
+      "/kenney_new-platformer-pack-1.0/Sprites/Tiles/Default/brick_grey.png"
+    );
+    this.load.image(
+      "rope",
+      "/kenney_new-platformer-pack-1.0/Sprites/Tiles/Default/rope.png"
+    );
+
+    // THÊM MỚI: Asset cho instant spike trap
+    this.load.image(
+      "spike_trap_image",
+      "/kenney_new-platformer-pack-1.0/Sprites/Tiles/Default/spikes.png"
+    );
+
+    // THÊM MỚI: Asset cho cục đá vật lý
+    this.load.image(
+      "rock",
+      "/kenney_new-platformer-pack-1.0/Sprites/Tiles/Default/rock.png"
+    );
+
     // THÊM MỚI: Load assets cho Mobile UI
     this.load.image(
       "dpad_left",
@@ -249,6 +301,10 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     this.load.image(
       "button_grab",
       "/mobile-controls-1/Sprites/Icons/Default/icon_hand.png"
+    );
+    this.load.image(
+      "button_carry",
+      "/mobile-controls-1/Sprites/Icons/Default/icon_arrow_curved.png"
     );
   }
 
@@ -308,11 +364,21 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     );
 
     // 5. SỬA ĐỔI: Dùng chuyên gia để xây dựng thế giới và nhận lại dữ liệu lò xo
-    const { platformsLayer, foregroundLayer, springsData } =
-      this.worldBuilder.build();
+    const { platformsLayer, foregroundLayer, waterSurfaceLayer, springsData } =
+      this.worldBuilder.build(); // <-- Nhận thêm waterSurfaceLayer
     this.platformsLayer = platformsLayer;
     this.foregroundLayer = foregroundLayer;
+    this.waterSurfaceLayer = waterSurfaceLayer; // <-- Lưu lại
     this.springsData = springsData; // <-- Lưu lại dữ liệu lò xo
+
+    // 5.1. THAY ĐỔI: Không tạo EnemyManager nữa - Server-Authoritative AI
+    // this.enemyManager = new EnemyManager(this);
+
+    // 5.2. THAY ĐỔI: Gửi enemy spawn data lên server thay vì spawn trực tiếp
+    const enemySpawns = this.worldBuilder.findEnemySpawnPoints();
+    console.log(
+      `🐟 ${this.SCENE_NAME}: Found ${enemySpawns.length} enemy spawn points, will send to server`
+    );
 
     // TỐI ƯU MATTER.JS: Dùng colliders tĩnh từ Object Layer thay vì convert cả tile layer
     try {
@@ -320,29 +386,66 @@ export abstract class BasePlatformerScene extends BaseGameScene {
       this.matter.world.setBounds(0, 0, worldDims.width, worldDims.height);
 
       const tm = this.worldBuilder.getTilemap();
+
+      // --- BẮT ĐẦU DEBUG ---
+      console.log("[DEBUG] Searching for 'MatterColliders' layer...");
       const matterCollidersLayer = tm.getObjectLayer("MatterColliders");
-      if (matterCollidersLayer && Array.isArray(matterCollidersLayer.objects)) {
-        matterCollidersLayer.objects.forEach((obj: any) => {
-          const x = obj.x ?? 0;
-          const y = obj.y ?? 0;
-          const width = obj.width ?? 0;
-          const height = obj.height ?? 0;
-          const cx = x + width / 2;
-          const cy = y + height / 2;
-          this.matter.add.rectangle(cx, cy, width, height, {
-            isStatic: true,
-            label: "Ground",
-          } as any);
-        });
+
+      // Kiểm tra xem layer có được tìm thấy không
+      if (matterCollidersLayer) {
         console.log(
-          `[Matter.js] Created ${matterCollidersLayer.objects.length} optimized static colliders.`
+          `[DEBUG] SUCCESS: Found 'MatterColliders' layer.`,
+          matterCollidersLayer
         );
+
+        // Kiểm tra xem layer có object không
+        if (
+          matterCollidersLayer.objects &&
+          matterCollidersLayer.objects.length > 0
+        ) {
+          console.log(
+            `[DEBUG] Layer contains ${matterCollidersLayer.objects.length} objects. Creating bodies...`
+          );
+
+          matterCollidersLayer.objects.forEach((obj: any, index: number) => {
+            const x = obj.x ?? 0;
+            const y = obj.y ?? 0;
+            const width = obj.width ?? 0;
+            const height = obj.height ?? 0;
+            const centerX = x + width / 2;
+            const centerY = y + height / 2;
+
+            console.log(
+              `[DEBUG] Creating body ${index}: pos(${centerX}, ${centerY}) size(${width}, ${height})`
+            );
+
+            this.matter.add.rectangle(centerX, centerY, width, height, {
+              isStatic: true,
+              label: `Ground_${index}`,
+            } as any);
+          });
+
+          console.log(
+            `[DEBUG] Finished creating ${matterCollidersLayer.objects.length} static Matter.js bodies.`
+          );
+        } else {
+          console.warn(
+            "[DEBUG] WARNING: 'MatterColliders' layer was found, but it contains NO objects."
+          );
+        }
       } else {
-        console.warn(
-          "[Matter.js] 'MatterColliders' object layer not found in Tiled map."
+        // Đây là thông báo quan trọng nhất nếu có lỗi
+        console.error(
+          "[DEBUG] ERROR: Could NOT find 'MatterColliders' object layer in Tiled map. Matter.js objects will fall through the world."
         );
       }
-    } catch {}
+      // --- KẾt THÚC DEBUG ---
+    } catch (e) {
+      console.error(
+        "[DEBUG] CRITICAL ERROR while setting up Matter.js colliders:",
+        e
+      );
+    }
 
     // Lưu lại điểm spawn ban đầu và reset checkpoint
     this.spawnPoint = this.worldBuilder.findPlayerSpawnPoint();
@@ -351,6 +454,12 @@ export abstract class BasePlatformerScene extends BaseGameScene {
 
     // 6. Setup các managers (logic này vẫn giữ lại vì khá đơn giản)
     this.setupPlatformerManagers();
+
+    // 6.5. THÊM MỚI: Tạo các bẫy phức tạp sau khi thế giới đã được xây dựng
+    this.complexTraps = this.worldBuilder.buildTraps();
+
+    // 6.6. COMMENT OUT: Không cần Matter.js collision listener nữa
+    // this.setupMatterCollisionListener();
 
     // 7. Khởi tạo chuyên gia mạng
     this.networkHandler = new PlatformerNetworkHandler(
@@ -435,6 +544,33 @@ export abstract class BasePlatformerScene extends BaseGameScene {
         );
       }
 
+      // THÊM MỚI: Gửi enemy spawn data lên server (Server-Authoritative AI)
+      const enemySpawns = this.worldBuilder.findEnemySpawnPoints();
+      if (enemySpawns && enemySpawns.length > 0) {
+        this.room.send("registerEnemySpawns", enemySpawns);
+        console.log(
+          `[Client] Registered ${enemySpawns.length} enemy spawns with server.`
+        );
+      }
+
+      // THÊM MỚI: Gửi instant spike traps lên server
+      const instantSpikeTraps = this.worldBuilder.findInstantSpikeTraps();
+      if (instantSpikeTraps && instantSpikeTraps.length > 0) {
+        this.room.send("registerInstantSpikeTraps", instantSpikeTraps);
+        console.log(
+          `[Client] Registered ${instantSpikeTraps.length} instant spike traps with server.`
+        );
+      }
+
+      // THÊM MỚI: Gửi generic physics spawners lên server
+      const physicsSpawners = this.worldBuilder.findPhysicsObjectSpawners();
+      if (physicsSpawners && physicsSpawners.length > 0) {
+        this.room.send("registerPhysicsSpawners", physicsSpawners);
+        console.log(
+          `[Client] Registered ${physicsSpawners.length} generic physics spawners with server.`
+        );
+      }
+
       // DEBUG: Kiểm tra room state
       console.log("[Client] Room state after connection:", this.room.state);
       console.log(
@@ -450,6 +586,23 @@ export abstract class BasePlatformerScene extends BaseGameScene {
           if (this.player) {
             console.log(`[Scene] Received applyKnockback command from server.`);
             this.player.applyKnockback(message.forceX, message.forceY);
+          }
+        }
+      );
+
+      // ======================== THÊM LISTENER CHO ENEMY COLLISION ========================
+      this.room.onMessage(
+        "playerHitByEnemy",
+        (message: { enemyId: string; damage: number }) => {
+          console.log(
+            `[Scene] Player hit by enemy ${message.enemyId}, damage: ${message.damage}`
+          );
+
+          // Xử lý player bị thương - sử dụng logic hazard collision có sẵn
+          if (this.player) {
+            this.handlePlayerDeathByHazard({
+              name: `enemy_${message.enemyId}`,
+            });
           }
         }
       );
@@ -629,6 +782,12 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     // THÊM MỚI: Setup collision đơn giản
     this.setupSimplePlayerCollision();
 
+    // THÊM MỚI: Setup collision giữa player và enemies
+    this.setupPlayerEnemyCollision();
+
+    // THÊM MỚI: Setup collision giữa enemies và platforms để AI phản ứng với tường
+    this.setupEnemyWallCollision();
+
     // Setup interactive objects CHỈ SAU KHI player chính được tạo
     this.worldBuilder.setupInteractiveObjects(
       this.player.getSprite(),
@@ -773,6 +932,26 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     return true; // Cho phép va chạm như bức tường
   };
 
+  /**
+   * 🪚 SETUP MATTER COLLISION LISTENER - Thiết lập listener va chạm Matter.js
+   *
+   * Lắng nghe sự kiện va chạm toàn cục trong thế giới Matter.js để xử lý
+   * va chạm giữa người chơi và các bẫy phức tạp như SwingingSawTrap.
+   */
+  private setupMatterCollisionListener(): void {
+    // COMMENT OUT: SwingingSawTrap giờ dùng Arcade Physics proxy thay vì Matter.js collision
+    // this.matter.world.on(
+    //   "collisionstart",
+    //   (event: Phaser.Physics.Matter.Events.CollisionStartEvent) => {
+    //     // Logic va chạm Matter.js cho các bẫy khác trong tương lai
+    //   }
+    // );
+
+    console.log(
+      "🪚 Matter.js collision listener setup (disabled for saw traps - using Arcade Physics)"
+    );
+  }
+
   // === UPDATE LOOP ===
 
   /**
@@ -788,9 +967,17 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     // THÊM MỚI: Gọi update của bộ luật mỗi frame
     this.rules?.update();
 
+    // THÊM MỚI: Cập nhật Enemy Manager
+    // this.enemyManager?.update(); // KHÔNG CẦN NỮA - Server-Authoritative AI
+
     // Cập nhật hiệu ứng môi trường nếu có
     if (this.environmentalEffect && this.player) {
       this.environmentalEffect.update(this.player);
+    }
+
+    // THÊM MỚI: Cập nhật trạng thái của các bẫy phức tạp
+    for (const trap of this.complexTraps) {
+      trap.update();
     }
   }
 
@@ -1033,6 +1220,18 @@ export abstract class BasePlatformerScene extends BaseGameScene {
     // Dọn dẹp hiệu ứng môi trường nếu có
     this.environmentalEffect?.cleanup();
     this.environmentalEffect = null;
+
+    // THÊM MỚI: Dọn dẹp các bẫy phức tạp
+    console.log(
+      `🗑️ ${this.SCENE_NAME}: Cleaning up ${this.complexTraps.length} complex traps...`
+    );
+    for (const trap of this.complexTraps) {
+      trap.destroy();
+    }
+    this.complexTraps = [];
+
+    // THÊM MỚI: Dọn dẹp Enemy Manager
+    // this.enemyManager?.destroy(); // KHÔNG CẦN NỮA - Server-Authoritative AI
 
     // Dọn dẹp Mobile UI Handler
     this.mobileUIHandler?.destroy();
@@ -1355,10 +1554,122 @@ export abstract class BasePlatformerScene extends BaseGameScene {
   }
 
   /**
+   * THÊM MỚI: Setup collision giữa player và enemies (Server-Authoritative AI)
+   */
+  private setupPlayerEnemyCollision(): void {
+    if (!this.player || !this.networkHandler) return;
+
+    // Setup collision với RemoteEnemy sprites khi chúng được tạo
+    // Sử dụng timer để kiểm tra và setup collision cho enemies mới
+    this.time.addEvent({
+      delay: 100, // Kiểm tra mỗi 100ms
+      callback: this.checkAndSetupEnemyCollisions,
+      callbackScope: this,
+      loop: true,
+    });
+
+    console.log("🐟 Player-Enemy collision system initialized for RemoteEnemy");
+  }
+
+  /**
+   * Kiểm tra và setup collision cho RemoteEnemy sprites mới
+   */
+  private checkAndSetupEnemyCollisions(): void {
+    if (!this.player || !this.networkHandler) return;
+
+    const remoteEnemies = this.networkHandler.getAllRemoteEnemies();
+    remoteEnemies.forEach((enemy: RemoteEnemy, enemyId: string) => {
+      const enemySprite = enemy.getSprite();
+
+      // Kiểm tra xem collision đã được setup chưa
+      if (!enemySprite.getData("collisionSetup")) {
+        // Setup collision overlap
+        this.physics.add.overlap(
+          this.player.getSprite(),
+          enemySprite,
+          (playerSprite, enemySprite) => {
+            this.handlePlayerEnemyCollision(playerSprite, enemySprite, enemyId);
+          },
+          undefined,
+          this
+        );
+
+        // Đánh dấu đã setup collision
+        enemySprite.setData("collisionSetup", true);
+        enemySprite.setData("enemyId", enemyId);
+
+        console.log(`🐟 Setup collision for enemy: ${enemyId}`);
+      }
+    });
+  }
+
+  /**
+   * THÊM MỚI: Setup collision giữa enemies và platforms (Server-Authoritative AI)
+   */
+  private setupEnemyWallCollision(): void {
+    // Collision với platforms sẽ được xử lý trên server trong AI logic
+    // Client chỉ hiển thị kết quả từ server
+    console.log("🧱 Enemy-Wall collision will be handled by server AI");
+  }
+
+  /**
+   * THÊM MỚI: Callback xử lý khi enemy va vào tường - kích hoạt AI thông minh
+   */
+  private handleEnemyWallCollision = (enemySprite: any, tile: any): void => {
+    const enemyController = enemySprite.getData("controller");
+
+    // Kiểm tra xem controller có phương thức onWallCollision không
+    if (
+      enemyController &&
+      typeof enemyController.onWallCollision === "function"
+    ) {
+      enemyController.onWallCollision();
+    }
+  };
+
+  /**
+   * THÊM MỚI: Callback xử lý va chạm giữa player và enemy (Server-Authoritative AI)
+   */
+  private handlePlayerEnemyCollision = (
+    playerSprite: any,
+    enemySprite: any,
+    enemyId: string
+  ): void => {
+    const playerBody = playerSprite.body as Phaser.Physics.Arcade.Body;
+
+    // Xác định loại collision
+    let collisionType = "touch";
+    if (playerBody.velocity.y > 0 && playerSprite.y < enemySprite.y) {
+      collisionType = "stomp";
+    }
+
+    console.log(
+      `🐟 Player-Enemy collision detected: ${collisionType} with ${enemyId}`
+    );
+
+    // Gửi collision event lên server để xử lý
+    if (this.room) {
+      this.room.send("playerEnemyCollision", {
+        enemyId: enemyId,
+        collisionType: collisionType,
+        playerX: playerSprite.x,
+        playerY: playerSprite.y,
+        playerVelocityY: playerBody.velocity.y,
+      });
+    }
+
+    // Client-side immediate feedback (sẽ được override bởi server nếu cần)
+    if (collisionType === "stomp") {
+      // Người chơi nảy lên một chút ngay lập tức để có feedback tức thì
+      playerBody.velocity.y = -300;
+    }
+  };
+
+  /**
    * THÊM MỚI: HANDLE PLAYER DEATH BY HAZARD - Được gọi khi người chơi chết do va chạm vật nguy hiểm
    */
   public async handlePlayerDeathByHazard(
-    hazardTile: Phaser.Tilemaps.Tile
+    hazardTile: Phaser.Tilemaps.Tile | any
   ): Promise<void> {
     if (this.isRespawning) return; // Nếu đang trong quá trình respawn thì bỏ qua
 

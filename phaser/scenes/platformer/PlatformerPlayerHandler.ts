@@ -78,6 +78,19 @@ export class PlatformerPlayerHandler {
       networkManager // Truyền NetworkManager
     );
 
+    // VVV KHỐI LỆNH MỚI VVV
+    // Chỉ áp dụng hiệu ứng ánh sáng nếu scene này đã "bật công tắc"
+    if (this.scene.isLightingEnabled()) {
+      player.getSprite().setPipeline("Light2D");
+
+      // QUAN TRỌNG: Name tag cũng cần tuân thủ ánh sáng!
+      const nameTag = (player as any).nameTag; // Truy cập nameTag
+      if (nameTag) {
+        nameTag.setPipeline("Light2D");
+      }
+    }
+    // ^^^ KẾT THÚC KHỐI LỆNH MỚI ^^^
+
     // 2. Thiết lập tất cả tương tác với tiles (collider + overlap)
     this.setupPlayerTileInteractions(player, platformsLayer, logicCore);
 
@@ -128,6 +141,14 @@ export class PlatformerPlayerHandler {
       },
       // ProcessCallback: hỏi Behavior có nên va chạm không
       (_sprite: any, tile: any) => {
+        // === LOGIC MỚI - ƯU TIÊN CAO NHẤT ===
+        // Nếu người chơi đang trong trạng thái rơi, VÔ HIỆU HÓA tất cả va chạm với platform.
+        if (player.getIsFallingThrough()) {
+          return false; // Trả về false để đi xuyên qua
+        }
+        // ===================================
+
+        // Logic cũ cho các behavior khác (giữ nguyên)
         const platformTile = tile as Phaser.Tilemaps.Tile;
         const behaviorType = (platformTile.properties as any)
           .behavior as string;
@@ -138,7 +159,7 @@ export class PlatformerPlayerHandler {
             return behavior.shouldCollide(platformTile, player, this.scene);
           }
         }
-        return true;
+        return true; // Mặc định là cho phép va chạm
       },
       this
     );

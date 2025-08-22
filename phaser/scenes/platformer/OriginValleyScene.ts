@@ -23,7 +23,7 @@ export class OriginValleyScene extends BasePlatformerScene {
         arcade: {},
         matter: {
           gravity: { y: 0.8 },
-          debug: false,
+          debug: false, // BẬT DEBUG ĐỂ XEM COLLISION BOUNDARIES!
         } as any,
       },
     });
